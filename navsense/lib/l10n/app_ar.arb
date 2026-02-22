@@ -1,0 +1,59 @@
+{
+  "@@locale": "ar",
+
+  "appTitle": "NavSense",
+
+  "navHome": "الرئيسية",
+  "navHistory": "السجل",
+  "navSettings": "الإعدادات",
+
+  "homeSelectDestination": "اختر وجهتك",
+  "homeFloor": "الطابق",
+  "homeStartNavigation": "ابدأ التنقل",
+  "homeNoDestination": "يرجى اختيار وجهة",
+  "homeComputingRoute": "جاري حساب المسار…",
+
+  "navigationHeading": "جاري التنقل",
+  "navigationDistanceLabel": "المسافة",
+  "navigationMeters": "{distance} م",
+  "navigationBleSignal": "إشارة BLE",
+  "navigationBleConnected": "متصل",
+  "navigationBleDisconnected": "جاري البحث…",
+  "navigationHapticLabel": "اهتزاز",
+  "navigationCancel": "إلغاء",
+  "navigationStepOf": "الخطوة {current} من {total}",
+
+  "instruction_go_straight": "استمر للأمام",
+  "instruction_turn_left": "انعطف يساراً",
+  "instruction_turn_right": "انعطف يميناً",
+  "instruction_arrived": "لقد وصلت!",
+  "instruction_off_route": "خارج المسار — جاري إعادة الحساب…",
+
+  "hapticLeft": "نبضة يسار",
+  "hapticRight": "نبضتان",
+  "hapticArrival": "نبضة طويلة",
+  "hapticOffRoute": "نبضات تنبيه",
+
+  "settingsTitle": "الإعدادات",
+  "settingsLanguage": "اللغة",
+  "settingsLanguageEnglish": "الإنجليزية",
+  "settingsLanguageArabic": "العربية",
+  "settingsAbout": "حول NavSense",
+  "settingsVersion": "الإصدار 1.0.0",
+  "settingsDescription": "نظام تنقل داخلي مع جهاز اهتزازي قابل للارتداء.",
+
+  "historyTitle": "سجل الجلسات",
+  "historyEmpty": "لا توجد جلسات تنقل بعد.",
+  "historySessionId": "معرّف الجلسة",
+  "historyEvents": "الأحداث",
+  "historyDuration": "المدة",
+  "historyExportJson": "عرض JSON",
+  "historyRouteCalcMs": "وقت حساب المسار",
+
+  "errorGeneric": "حدث خطأ. يرجى المحاولة مرة أخرى.",
+  "errorRouteComputation": "فشل في حساب المسار.",
+
+  "bleSearchingForDevice": "جاري البحث عن الجهاز…",
+  "bleDeviceFound": "تم العثور على الجهاز",
+  "bleConnecting": "جاري الاتصال…"
+}

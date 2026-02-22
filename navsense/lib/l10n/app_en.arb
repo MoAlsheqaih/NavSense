@@ -1,0 +1,150 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "NavSense",
+  "@appTitle": { "description": "Application name" },
+
+  "navHome": "Home",
+  "@navHome": { "description": "Bottom nav label" },
+
+  "navHistory": "History",
+  "@navHistory": { "description": "Bottom nav label" },
+
+  "navSettings": "Settings",
+  "@navSettings": { "description": "Bottom nav label" },
+
+  "homeSelectDestination": "Select Destination",
+  "@homeSelectDestination": { "description": "Home screen heading" },
+
+  "homeFloor": "Floor",
+  "@homeFloor": { "description": "Floor label prefix" },
+
+  "homeStartNavigation": "Start Navigation",
+  "@homeStartNavigation": { "description": "CTA button" },
+
+  "homeNoDestination": "Please select a destination",
+  "@homeNoDestination": { "description": "Validation message" },
+
+  "homeComputingRoute": "Computing route…",
+  "@homeComputingRoute": { "description": "Loading state" },
+
+  "navigationHeading": "Navigating",
+  "@navigationHeading": { "description": "Navigation page title" },
+
+  "navigationDistanceLabel": "Distance",
+  "@navigationDistanceLabel": { "description": "Distance label" },
+
+  "navigationMeters": "{distance} m",
+  "@navigationMeters": {
+    "description": "Distance in meters",
+    "placeholders": { "distance": { "type": "String" } }
+  },
+
+  "navigationBleSignal": "BLE Signal",
+  "@navigationBleSignal": { "description": "BLE signal label" },
+
+  "navigationBleConnected": "Connected",
+  "@navigationBleConnected": { "description": "BLE connected state" },
+
+  "navigationBleDisconnected": "Searching…",
+  "@navigationBleDisconnected": { "description": "BLE searching state" },
+
+  "navigationHapticLabel": "Haptic",
+  "@navigationHapticLabel": { "description": "Haptic label" },
+
+  "navigationCancel": "Cancel",
+  "@navigationCancel": { "description": "Cancel navigation button" },
+
+  "navigationStepOf": "Step {current} of {total}",
+  "@navigationStepOf": {
+    "description": "Step counter",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "instruction_go_straight": "Go straight",
+  "@instruction_go_straight": { "description": "Navigation instruction" },
+
+  "instruction_turn_left": "Turn left",
+  "@instruction_turn_left": { "description": "Navigation instruction" },
+
+  "instruction_turn_right": "Turn right",
+  "@instruction_turn_right": { "description": "Navigation instruction" },
+
+  "instruction_arrived": "You have arrived!",
+  "@instruction_arrived": { "description": "Navigation instruction" },
+
+  "instruction_off_route": "Off route — recalculating…",
+  "@instruction_off_route": { "description": "Off-route alert" },
+
+  "hapticLeft": "Left pulse",
+  "@hapticLeft": { "description": "Haptic pattern label" },
+
+  "hapticRight": "Double pulse",
+  "@hapticRight": { "description": "Haptic pattern label" },
+
+  "hapticArrival": "Long pulse",
+  "@hapticArrival": { "description": "Haptic pattern label" },
+
+  "hapticOffRoute": "Alert pulses",
+  "@hapticOffRoute": { "description": "Haptic pattern label" },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Settings page title" },
+
+  "settingsLanguage": "Language",
+  "@settingsLanguage": { "description": "Language setting label" },
+
+  "settingsLanguageEnglish": "English",
+  "@settingsLanguageEnglish": { "description": "Language option" },
+
+  "settingsLanguageArabic": "Arabic",
+  "@settingsLanguageArabic": { "description": "Language option" },
+
+  "settingsAbout": "About NavSense",
+  "@settingsAbout": { "description": "About section title" },
+
+  "settingsVersion": "Version 1.0.0",
+  "@settingsVersion": { "description": "App version" },
+
+  "settingsDescription": "Indoor navigation system with haptic wearable device.",
+  "@settingsDescription": { "description": "Short app description" },
+
+  "historyTitle": "Session History",
+  "@historyTitle": { "description": "Session history page title" },
+
+  "historyEmpty": "No navigation sessions yet.",
+  "@historyEmpty": { "description": "Empty state message" },
+
+  "historySessionId": "Session ID",
+  "@historySessionId": { "description": "Session detail label" },
+
+  "historyEvents": "Events",
+  "@historyEvents": { "description": "Events label" },
+
+  "historyDuration": "Duration",
+  "@historyDuration": { "description": "Duration label" },
+
+  "historyExportJson": "View JSON",
+  "@historyExportJson": { "description": "Export button label" },
+
+  "historyRouteCalcMs": "Route calc",
+  "@historyRouteCalcMs": { "description": "Route calculation time label" },
+
+  "errorGeneric": "Something went wrong. Please try again.",
+  "@errorGeneric": { "description": "Generic error message" },
+
+  "errorRouteComputation": "Failed to compute route.",
+  "@errorRouteComputation": { "description": "Route error message" },
+
+  "bleSearchingForDevice": "Searching for wearable…",
+  "@bleSearchingForDevice": { "description": "BLE scan in progress" },
+
+  "bleDeviceFound": "Wearable found",
+  "@bleDeviceFound": { "description": "BLE device discovered" },
+
+  "bleConnecting": "Connecting…",
+  "@bleConnecting": { "description": "BLE connecting state" }
+}
