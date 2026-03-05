@@ -17,7 +17,7 @@ class NavSenseApp extends StatelessWidget {
         return MaterialApp(
           title: 'NavSense',
           debugShowCheckedModeBanner: false,
-          theme: AppTheme.light,
+          theme: AppTheme.dark,
 
           // ── Localization (SR-UI-01, SR-UI-03) ─────────────────────────
           locale: settingsVm.locale,

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../data/models/session_log_model.dart';
 import '../../domain/entities/navigation_session.dart';
 import '../../domain/entities/session_event.dart';
@@ -30,7 +31,7 @@ class _SessionLogTileState extends State<SessionLogTile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ListTile(
-            leading: const Icon(Icons.route, color: Color(0xFF1565C0)),
+            leading: const Icon(Icons.route, color: AppTheme.primaryColor),
             title: Text(
               session.sessionId.substring(0, 8).toUpperCase(),
               style: const TextStyle(
@@ -45,7 +46,12 @@ class _SessionLogTileState extends State<SessionLogTile> {
                 if (duration != null)
                   Chip(
                     label: Text(_formatDuration(duration)),
-                    backgroundColor: Colors.green.shade50,
+                    backgroundColor: AppTheme.successColor.withOpacity(0.15),
+                    labelStyle: const TextStyle(
+                      color: AppTheme.successColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
                   ),
                 const SizedBox(width: 4),
                 IconButton(
@@ -69,7 +75,7 @@ class _SessionLogTileState extends State<SessionLogTile> {
             ...session.events.map((e) => ListTile(
                   dense: true,
                   leading: const Icon(Icons.circle, size: 10,
-                      color: Color(0xFF1565C0)),
+                      color: AppTheme.primaryColor),
                   title: Text(e.type.jsonKey,
                       style: const TextStyle(fontSize: 13)),
                   trailing: Text(

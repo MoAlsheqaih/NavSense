@@ -59,49 +59,75 @@ class _CustomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bg = Theme.of(context).canvasColor;
+    const selectedColor = AppTheme.primaryColor;
+    const unselectedColor = AppTheme.darkOnMuted;
+
     return Material(
-      elevation: 8,
-      color: Colors.white,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: List.generate(icons.length, (i) {
-              final selected = i == selectedIndex;
-              return Expanded(
-                child: InkWell(
-                  onTap: () => onTap(i),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        icons[i],
-                        color: selected
-                            ? AppTheme.primaryColor
-                            : Colors.grey,
-                        size: 22,
+      elevation: 0,
+      color: bg,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Top divider line
+          Container(height: 0.5, color: AppTheme.darkBorder),
+          SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 60,
+              child: Row(
+                children: List.generate(icons.length, (i) {
+                  final selected = i == selectedIndex;
+                  return Expanded(
+                    child: InkWell(
+                      onTap: () => onTap(i),
+                      splashColor: selectedColor.withOpacity(0.1),
+                      highlightColor: Colors.transparent,
+                      child: Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          // Selection indicator bar
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            height: 2,
+                            width: selected ? 32 : 0,
+                            decoration: const BoxDecoration(
+                              color: AppTheme.primaryColor,
+                              borderRadius: BorderRadius.vertical(
+                                bottom: Radius.circular(2),
+                              ),
+                            ),
+                          ),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                icons[i],
+                                color: selected ? selectedColor : unselectedColor,
+                                size: 22,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                labels[i],
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: selected ? selectedColor : unselectedColor,
+                                  fontWeight: selected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        labels[i],
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: selected
-                              ? AppTheme.primaryColor
-                              : Colors.grey,
-                          fontWeight: selected
-                              ? FontWeight.w600
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+                    ),
+                  );
+                }),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

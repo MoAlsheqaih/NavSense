@@ -3,6 +3,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../../../domain/entities/route_plan.dart';
 import '../../../services/ble/ble_service.dart';
 import '../../../services/haptic/haptic_service.dart';
@@ -84,7 +85,7 @@ class _NavigationViewState extends State<_NavigationView> {
               Text(
                 l10n.navigationStepOf(
                     vm.currentStepIndex + 1, vm.totalSteps),
-                style: const TextStyle(color: Colors.grey),
+                style: const TextStyle(color: AppTheme.darkOnMuted),
               ),
               const SizedBox(height: 12),
 
@@ -130,13 +131,13 @@ class _NavigationViewState extends State<_NavigationView> {
               // Off-route trigger
               OutlinedButton.icon(
                 onPressed: vm.triggerOffRoute,
-                icon: const Icon(Icons.warning_amber, color: Colors.orange),
+                icon: const Icon(Icons.warning_amber, color: AppTheme.warningColor),
                 label: Text(
                   l10n.instruction_off_route,
-                  style: const TextStyle(color: Colors.orange),
+                  style: const TextStyle(color: AppTheme.warningColor),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.orange),
+                  side: const BorderSide(color: AppTheme.warningColor),
                 ),
               ),
               const SizedBox(height: 8),
@@ -241,12 +242,15 @@ class _InfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, size: 18, color: Colors.grey),
+        Icon(icon, size: 18, color: AppTheme.darkOnMuted),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        Text(label,
+            style: const TextStyle(fontSize: 11, color: AppTheme.darkOnMuted)),
         Text(value,
             style: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16)),
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppTheme.darkOnBg)),
       ],
     );
   }

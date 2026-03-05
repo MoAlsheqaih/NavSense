@@ -15,40 +15,65 @@ class DirectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: _cardColor,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(_icon, size: 80, color: Colors.white),
-            const SizedBox(height: 16),
-            Text(
-              instruction,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+    final colors = _gradientColors;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colors.first.withOpacity(0.35),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(_icon, size: 48, color: Colors.white),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            instruction,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 0.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
 
-  Color get _cardColor {
+  List<Color> get _gradientColors {
     switch (direction) {
       case TurnDirection.left:
-        return AppTheme.primaryColor;
+        return [const Color(0xFF1A3A8F), AppTheme.primaryColor];
       case TurnDirection.right:
-        return AppTheme.primaryColor;
+        return [AppTheme.primaryColor, const Color(0xFF1A3A8F)];
       case TurnDirection.straight:
-        return AppTheme.accentColor;
+        return [const Color(0xFF0D47A1), AppTheme.accentColor];
       case TurnDirection.arrived:
-        return AppTheme.successColor;
+        return [const Color(0xFF1B5E20), AppTheme.successColor];
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../domain/usecases/compute_route_usecase.dart';
 import '../../../services/routing/route_service.dart';
 import 'home_viewmodel.dart';
@@ -79,14 +80,14 @@ class _HomeViewState extends State<_HomeView> {
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Theme.of(context).primaryColor
-                              : Colors.grey.shade100,
+                              ? AppTheme.primaryColor.withOpacity(0.18)
+                              : AppTheme.darkCard,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey.shade300,
-                            width: isSelected ? 2 : 1,
+                                ? AppTheme.primaryColor
+                                : AppTheme.darkBorder,
+                            width: isSelected ? 1.5 : 0.8,
                           ),
                         ),
                         padding: const EdgeInsets.all(12),
@@ -95,8 +96,9 @@ class _HomeViewState extends State<_HomeView> {
                           children: [
                             Icon(
                               Icons.location_on,
-                              color:
-                                  isSelected ? Colors.white : Colors.grey,
+                              color: isSelected
+                                  ? AppTheme.primaryColor
+                                  : AppTheme.darkOnMuted,
                             ),
                             const SizedBox(height: 6),
                             Text(
@@ -104,8 +106,8 @@ class _HomeViewState extends State<_HomeView> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: isSelected
-                                    ? Colors.white
-                                    : Colors.black87,
+                                    ? AppTheme.primaryColor
+                                    : AppTheme.darkOnBg,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
                               ),
@@ -115,8 +117,8 @@ class _HomeViewState extends State<_HomeView> {
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isSelected
-                                    ? Colors.white70
-                                    : Colors.grey,
+                                    ? AppTheme.primaryColor.withOpacity(0.8)
+                                    : AppTheme.darkOnMuted,
                               ),
                             ),
                           ],

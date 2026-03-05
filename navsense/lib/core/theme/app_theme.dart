@@ -3,26 +3,62 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color primaryColor = Color(0xFF1565C0); // deep blue
-  static const Color accentColor = Color(0xFF42A5F5); // light blue
-  static const Color warningColor = Color(0xFFFF6F00); // amber
-  static const Color successColor = Color(0xFF2E7D32); // green
-  static const Color errorColor = Color(0xFFC62828); // red
+  // ── Semantic palette (dark-optimised) ─────────────────────────────────────
+  static const Color primaryColor = Color(0xFF5B9BFF); // vivid blue
+  static const Color accentColor  = Color(0xFF82B1FF); // softer blue
+  static const Color warningColor = Color(0xFFFFB300); // amber
+  static const Color successColor = Color(0xFF4CAF50); // green
+  static const Color errorColor   = Color(0xFFFF5252); // red
 
-  static ThemeData get light {
+  // ── Dark surface palette ──────────────────────────────────────────────────
+  static const Color darkBg      = Color(0xFF0D0D14); // deepest background
+  static const Color darkSurface = Color(0xFF14141F); // app bar / nav bar
+  static const Color darkCard    = Color(0xFF1C1C2B); // card / dialog
+  static const Color darkBorder  = Color(0xFF2A2A3D); // subtle borders
+  static const Color darkOnBg    = Color(0xFFE8EAF6); // primary text
+  static const Color darkOnMuted = Color(0xFF8A8AAD); // secondary/hint text
+
+  // Private aliases used internally
+  static const Color _bg      = darkBg;
+  static const Color _surface = darkSurface;
+  static const Color _card    = darkCard;
+  static const Color _border  = darkBorder;
+  static const Color _onBg    = darkOnBg;
+  static const Color _onMuted = darkOnMuted;
+
+  // ── Dark theme ────────────────────────────────────────────────────────────
+  static ThemeData get dark {
     return ThemeData(
       useMaterial3: false,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        brightness: Brightness.light,
-      ),
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: _bg,
       primaryColor: primaryColor,
+      canvasColor: _surface,
+      cardColor: _card,
+      dialogBackgroundColor: _card,
+      hintColor: _onMuted,
+      colorScheme: const ColorScheme.dark(
+        primary: primaryColor,
+        secondary: accentColor,
+        error: errorColor,
+        background: _bg,
+        surface: _surface,
+        onPrimary: Colors.white,
+        onSecondary: Colors.white,
+        onBackground: _onBg,
+        onSurface: _onBg,
+        onError: Colors.white,
+      ),
+
+      // ── AppBar ────────────────────────────────────────────────────────────
       appBarTheme: const AppBarTheme(
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 2,
+        backgroundColor: _surface,
+        foregroundColor: _onBg,
+        elevation: 0,
         centerTitle: true,
       ),
+
+      // ── Buttons ───────────────────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryColor,
@@ -31,23 +67,83 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
+          elevation: 4,
+          shadowColor: primaryColor.withOpacity(0.4),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
           ),
         ),
       ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: warningColor,
+          side: const BorderSide(color: warningColor),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: errorColor,
+        ),
+      ),
+
+      // ── Cards ─────────────────────────────────────────────────────────────
       cardTheme: CardTheme(
-        elevation: 3,
+        color: _card,
+        elevation: 6,
+        shadowColor: Colors.black87,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: _border, width: 0.8),
         ),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
+
+      // ── Bottom nav ────────────────────────────────────────────────────────
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: _surface,
         selectedItemColor: primaryColor,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: _onMuted,
         type: BottomNavigationBarType.fixed,
+      ),
+
+      // ── Misc ──────────────────────────────────────────────────────────────
+      dividerColor: _border,
+      iconTheme: const IconThemeData(color: _onBg),
+      listTileTheme: const ListTileThemeData(
+        iconColor: _onMuted,
+        textColor: _onBg,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: MaterialStateProperty.resolveWith(
+          (s) => s.contains(MaterialState.selected) ? primaryColor : _onMuted,
+        ),
+        trackColor: MaterialStateProperty.resolveWith(
+          (s) => s.contains(MaterialState.selected)
+              ? primaryColor.withOpacity(0.35)
+              : _border,
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: _border,
+        labelStyle: const TextStyle(color: _onBg, fontSize: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      progressIndicatorTheme:
+          const ProgressIndicatorThemeData(color: primaryColor),
+      textTheme: const TextTheme(
+        headlineSmall: TextStyle(
+          color: _onBg,
+          fontWeight: FontWeight.bold,
+          fontSize: 22,
+        ),
+        titleMedium: TextStyle(color: _onBg),
+        bodyLarge: TextStyle(color: _onBg),
+        bodyMedium: TextStyle(color: _onMuted),
       ),
     );
   }

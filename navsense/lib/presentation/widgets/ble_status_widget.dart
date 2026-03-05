@@ -63,7 +63,7 @@ class _SignalBars extends StatelessWidget {
           height: 6.0 + i * 3,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
-            color: filled ? AppTheme.successColor : Colors.grey.shade300,
+            color: filled ? AppTheme.successColor : AppTheme.darkBorder,
             borderRadius: BorderRadius.circular(1),
           ),
         );
