@@ -35,17 +35,15 @@ class AppTheme {
       primaryColor: primaryColor,
       canvasColor: _surface,
       cardColor: _card,
-      dialogBackgroundColor: _card,
+      dialogTheme: const DialogThemeData(backgroundColor: _card),
       hintColor: _onMuted,
       colorScheme: const ColorScheme.dark(
         primary: primaryColor,
         secondary: accentColor,
         error: errorColor,
-        background: _bg,
         surface: _surface,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onBackground: _onBg,
         onSurface: _onBg,
         onError: Colors.white,
       ),
@@ -68,7 +66,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(12),
           ),
           elevation: 4,
-          shadowColor: primaryColor.withOpacity(0.4),
+          shadowColor: primaryColor.withValues(alpha: 0.4),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -91,7 +89,7 @@ class AppTheme {
       ),
 
       // ── Cards ─────────────────────────────────────────────────────────────
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: _card,
         elevation: 6,
         shadowColor: Colors.black87,
@@ -118,12 +116,12 @@ class AppTheme {
         textColor: _onBg,
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith(
-          (s) => s.contains(MaterialState.selected) ? primaryColor : _onMuted,
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? primaryColor : _onMuted,
         ),
-        trackColor: MaterialStateProperty.resolveWith(
-          (s) => s.contains(MaterialState.selected)
-              ? primaryColor.withOpacity(0.35)
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected)
+              ? primaryColor.withValues(alpha: 0.35)
               : _border,
         ),
       ),

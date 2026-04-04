@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:navsense/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'settings_viewmodel.dart';
@@ -29,7 +29,7 @@ class SettingsPage extends StatelessWidget {
             trailing: Switch(
               value: vm.isArabic,
               onChanged: (_) => vm.toggleLanguage(),
-              activeColor: Theme.of(context).primaryColor,
+              activeThumbColor: Theme.of(context).primaryColor,
             ),
           ),
           Padding(

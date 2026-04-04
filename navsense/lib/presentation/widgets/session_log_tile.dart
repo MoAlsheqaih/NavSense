@@ -46,7 +46,7 @@ class _SessionLogTileState extends State<SessionLogTile> {
                 if (duration != null)
                   Chip(
                     label: Text(_formatDuration(duration)),
-                    backgroundColor: AppTheme.successColor.withOpacity(0.15),
+                    backgroundColor: AppTheme.successColor.withValues(alpha: 0.15),
                     labelStyle: const TextStyle(
                       color: AppTheme.successColor,
                       fontWeight: FontWeight.w600,

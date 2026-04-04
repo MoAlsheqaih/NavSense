@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:navsense/l10n/app_localizations.dart';
 import 'package:get_it/get_it.dart';
 import 'package:provider/provider.dart';
 
@@ -80,7 +80,7 @@ class _HomeViewState extends State<_HomeView> {
                         duration: const Duration(milliseconds: 200),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? AppTheme.primaryColor.withOpacity(0.18)
+                              ? AppTheme.primaryColor.withValues(alpha: 0.18)
                               : AppTheme.darkCard,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
@@ -117,7 +117,7 @@ class _HomeViewState extends State<_HomeView> {
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isSelected
-                                    ? AppTheme.primaryColor.withOpacity(0.8)
+                                    ? AppTheme.primaryColor.withValues(alpha: 0.8)
                                     : AppTheme.darkOnMuted,
                               ),
                             ),

@@ -29,7 +29,7 @@ class DirectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: colors.first.withOpacity(0.35),
+            color: colors.first.withValues(alpha: 0.35),
             blurRadius: 18,
             offset: const Offset(0, 6),
           ),
@@ -43,7 +43,7 @@ class DirectionCard extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(_icon, size: 48, color: Colors.white),

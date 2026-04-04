@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:navsense/l10n/app_localizations.dart';
 
 import '../../core/theme/app_theme.dart';
 import 'home/home_page.dart';
@@ -81,7 +81,7 @@ class _CustomNavBar extends StatelessWidget {
                   return Expanded(
                     child: InkWell(
                       onTap: () => onTap(i),
-                      splashColor: selectedColor.withOpacity(0.1),
+                      splashColor: selectedColor.withValues(alpha: 0.1),
                       highlightColor: Colors.transparent,
                       child: Stack(
                         alignment: Alignment.topCenter,
