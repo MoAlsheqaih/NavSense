@@ -38,6 +38,9 @@ class NavigationViewModel extends ChangeNotifier {
   NavigationStatus get status => _status;
   String? get lastHapticLabel => _lastHapticLabel;
   bool get isConnected => _bleService.isConnected;
+  int get lastRssi => _bleService.lastRssi;
+  double? get lastDistanceMeters => _bleService.lastDistanceMeters;
+  String get signalStrength => _bleService.signalStrength;
 
   RouteStep get currentStep => routePlan.steps[_currentStepIndex];
   int get totalSteps => routePlan.steps.length;

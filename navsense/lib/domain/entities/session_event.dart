@@ -1,13 +1,7 @@
 enum SessionEventType {
-  destinationSet,
-  routeComputationStart,
-  routeStarted,
-  turnLeft,
-  turnRight,
-  offRoute,
-  arrived,
+  destinationSet, routeComputationStart, routeStarted,
+  turnLeft, turnRight, offRoute, arrived,
 }
-
 extension SessionEventTypeLabel on SessionEventType {
   String get jsonKey {
     switch (this) {
@@ -28,20 +22,16 @@ extension SessionEventTypeLabel on SessionEventType {
     }
   }
 }
-
 class SessionEvent {
-  final SessionEventType type;
-  final DateTime timestamp; // always UTC
+  final SessionEventType type; final DateTime timestamp; // always UTC
 
   const SessionEvent({
-    required this.type,
-    required this.timestamp,
+    required this.type, required this.timestamp,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'type': type.jsonKey,
-      'timestamp': timestamp.millisecondsSinceEpoch,
+      'type': type.jsonKey, 'timestamp': timestamp.millisecondsSinceEpoch,
     };
   }
 }

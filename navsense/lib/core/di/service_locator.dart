@@ -1,7 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import '../../data/datasources/local_session_datasource.dart';
-import '../../data/datasources/mock_route_datasource.dart';
+import '../../data/datasources/floor_route_datasource.dart';
 import '../../data/repositories/route_repository_impl.dart';
 import '../../data/repositories/session_repository_impl.dart';
 import '../../domain/repositories/route_repository.dart';
@@ -10,7 +10,7 @@ import '../../domain/usecases/compute_route_usecase.dart';
 import '../../domain/usecases/log_event_usecase.dart';
 import '../../domain/usecases/start_navigation_usecase.dart';
 import '../../services/ble/ble_service.dart';
-import '../../services/ble/mock_ble_service.dart';
+import '../../services/ble/real_ble_service.dart';
 import '../../services/haptic/haptic_service.dart';
 import '../../services/haptic/haptic_service_impl.dart';
 import '../../services/logging/session_logging_service.dart';
@@ -27,11 +27,11 @@ Future<void> setupServiceLocator() async {
   // ── Datasources ──────────────────────────────────────────────────────────
   sl.registerLazySingleton<LocalSessionDatasource>(
       () => LocalSessionDatasource());
-  sl.registerLazySingleton<MockRouteDatasource>(() => MockRouteDatasource());
+  sl.registerLazySingleton<FloorRouteDatasource>(() => FloorRouteDatasource());
 
   // ── Repositories ─────────────────────────────────────────────────────────
   sl.registerLazySingleton<RouteRepository>(
-    () => RouteRepositoryImpl(sl<MockRouteDatasource>()),
+    () => RouteRepositoryImpl(sl<FloorRouteDatasource>()),
   );
   sl.registerLazySingleton<SessionRepository>(
     () => SessionRepositoryImpl(sl<LocalSessionDatasource>()),
@@ -46,10 +46,10 @@ Future<void> setupServiceLocator() async {
       () => StartNavigationUseCase(sl<SessionRepository>()));
 
   // ── Services ─────────────────────────────────────────────────────────────
-  sl.registerLazySingleton<BleService>(() => MockBleService());
+  sl.registerLazySingleton<BleService>(() => RealBleService());
   sl.registerLazySingleton<HapticService>(() => HapticServiceImpl());
   sl.registerLazySingleton<RouteService>(
-    () => MockRouteService(sl<MockRouteDatasource>()),
+    () => MockRouteService(sl<FloorRouteDatasource>()),
   );
   sl.registerLazySingleton<SessionLoggingService>(
     () => SessionLoggingServiceImpl(sl<SessionRepository>()),

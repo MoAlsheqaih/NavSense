@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navsense/data/datasources/mock_route_datasource.dart';
+import 'package:navsense/data/datasources/floor_route_datasource.dart';
 import 'package:navsense/domain/entities/route_plan.dart';
 import 'package:navsense/domain/entities/waypoint.dart';
 import 'package:navsense/services/routing/mock_route_service.dart';
@@ -13,7 +13,7 @@ void main() {
       Waypoint(id: 'wp_lab1', name: 'Lab 101', floor: 1, x: 15, y: 20);
 
   setUp(() {
-    service = MockRouteService(MockRouteDatasource());
+    service = MockRouteService(FloorRouteDatasource());
   });
 
   group('MockRouteService', () {

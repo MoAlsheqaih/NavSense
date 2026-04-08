@@ -7,6 +7,15 @@ abstract class BleService {
   /// Estimated distance to the next waypoint in meters.
   Stream<double> get distanceStream;
 
+  /// Last measured RSSI in dBm (0 if no reading yet).
+  int get lastRssi;
+
+  /// Last estimated distance in meters (null if no reading yet).
+  double? get lastDistanceMeters;
+
+  /// Human-readable signal strength: VERY CLOSE / CLOSE / MEDIUM / FAR.
+  String get signalStrength;
+
   /// Scans for nearby NavSense wearable devices.
   Stream<BleDevice> scanDevices();
 

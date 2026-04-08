@@ -15,21 +15,18 @@ class HomeViewModel extends ChangeNotifier {
 
   HomeState _state = HomeState.idle;
   List<Waypoint> _destinations = [];
+  Waypoint? _origin;
   Waypoint? _selected;
   String? _errorMessage;
 
   HomeState get state => _state;
   List<Waypoint> get destinations => _destinations;
+  Waypoint? get selectedOrigin => _origin;
   Waypoint? get selectedDestination => _selected;
   String? get errorMessage => _errorMessage;
 
-  final _origin = const Waypoint(
-    id: 'wp_entrance',
-    name: 'Main Entrance',
-    floor: 0,
-    x: 0,
-    y: 0,
-  );
+  bool get canStart =>
+      _origin != null && _selected != null && _origin!.id != _selected!.id;
 
   Future<void> loadDestinations() async {
     _state = HomeState.loading;
@@ -44,18 +41,25 @@ class HomeViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void selectOrigin(Waypoint waypoint) {
+    _origin = waypoint;
+    if (_selected?.id == waypoint.id) _selected = null;
+    notifyListeners();
+  }
+
   void selectDestination(Waypoint waypoint) {
     _selected = waypoint;
+    if (_origin?.id == waypoint.id) _origin = null;
     notifyListeners();
   }
 
   Future<RoutePlan?> startNavigation() async {
-    if (_selected == null) return null;
+    if (!canStart) return null;
     _state = HomeState.loading;
     _errorMessage = null;
     notifyListeners();
     try {
-      final plan = await _computeRoute(_origin, _selected!);
+      final plan = await _computeRoute(_origin!, _selected!);
       _state = HomeState.idle;
       notifyListeners();
       return plan;

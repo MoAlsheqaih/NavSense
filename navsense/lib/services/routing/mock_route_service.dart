@@ -1,10 +1,10 @@
-import '../../data/datasources/mock_route_datasource.dart';
+import '../../data/datasources/floor_route_datasource.dart';
 import '../../domain/entities/route_plan.dart';
 import '../../domain/entities/waypoint.dart';
 import 'route_service.dart';
 
 class MockRouteService implements RouteService {
-  final MockRouteDatasource _datasource;
+  final FloorRouteDatasource _datasource;
 
   const MockRouteService(this._datasource);
 

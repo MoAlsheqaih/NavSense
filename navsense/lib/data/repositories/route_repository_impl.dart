@@ -1,10 +1,10 @@
 import '../../domain/entities/route_plan.dart';
 import '../../domain/entities/waypoint.dart';
 import '../../domain/repositories/route_repository.dart';
-import '../datasources/mock_route_datasource.dart';
+import '../datasources/floor_route_datasource.dart';
 
 class RouteRepositoryImpl implements RouteRepository {
-  final MockRouteDatasource _datasource;
+  final FloorRouteDatasource _datasource;
 
   const RouteRepositoryImpl(this._datasource);
 
