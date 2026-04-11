@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import '../../../domain/entities/route_plan.dart';
 import '../../../domain/entities/session_event.dart';
+import '../../../domain/entities/waypoint.dart';
 import '../../../services/ble/ble_service.dart';
 import '../../../services/haptic/haptic_service.dart';
 import '../../../services/logging/session_logging_service.dart';
+import '../../../services/simulation/simulation_config.dart';
+import '../../../services/simulation/simulated_position_provider.dart';
 
 enum NavigationStatus { active, arrived, cancelled }
 
@@ -15,12 +19,15 @@ class NavigationViewModel extends ChangeNotifier {
   final BleService _bleService;
   final HapticService _hapticService;
   final SessionLoggingService _loggingService;
+  final bool useSimulation;
+  SimulatedPositionProvider? _positionProvider;
 
   NavigationViewModel({
     required this.routePlan,
     required BleService bleService,
     required HapticService hapticService,
     required SessionLoggingService loggingService,
+    this.useSimulation = false,
   })  : _bleService = bleService,
         _hapticService = hapticService,
         _loggingService = loggingService;
@@ -31,6 +38,8 @@ class NavigationViewModel extends ChangeNotifier {
   NavigationStatus _status = NavigationStatus.active;
   String? _lastHapticLabel;
   StreamSubscription<double>? _distanceSub;
+  StreamSubscription<Waypoint>? _positionSub;
+  Waypoint? _currentPosition;
 
   String? get sessionId => _sessionId;
   int get currentStepIndex => _currentStepIndex;
@@ -44,6 +53,11 @@ class NavigationViewModel extends ChangeNotifier {
 
   RouteStep get currentStep => routePlan.steps[_currentStepIndex];
   int get totalSteps => routePlan.steps.length;
+  Waypoint? get currentPosition => _currentPosition;
+
+  double _calculateDistanceToWaypoint(Waypoint from, Waypoint to) {
+    return sqrt(pow(to.x - from.x, 2) + pow(to.y - from.y, 2));
+  }
 
   Future<void> initialize() async {
     _sessionId = await _loggingService.startSession();
@@ -53,20 +67,51 @@ class NavigationViewModel extends ChangeNotifier {
         _sessionId!, SessionEventType.routeComputationStart);
     await _loggingService.logEvent(_sessionId!, SessionEventType.routeStarted);
 
-    // Connect BLE wearable
-    await _bleService.connect('mock-device-001');
+    if (useSimulation) {
+      await _initializeSimulation();
+    } else {
+      await _initializeBle();
+    }
+
+    await _triggerHapticForStep();
+  }
+
+  Future<void> _initializeSimulation() async {
+    _positionProvider = SimulatedPositionProvider(
+      config: SimulationConfig(
+        destination: routePlan.destination,
+        speed: 0.5,
+        updateInterval: 1.0,
+        addNoise: true,
+        noiseRadius: 0.3,
+      ),
+    );
+
+    await _positionProvider!.start();
+
+    _positionSub = _positionProvider!.positionStream.listen((position) {
+      _currentPosition = position;
+      final nextWaypoint = routePlan.steps[_currentStepIndex].waypoint;
+      _currentDistance = _calculateDistanceToWaypoint(position, nextWaypoint);
+      notifyListeners();
+
+      if (_currentDistance < 1.0 && _status == NavigationStatus.active) {
+        _advanceStep();
+      }
+    });
+  }
+
+  Future<void> _initializeBle() async {
+    await _bleService.connectAll();
 
     _distanceSub = _bleService.distanceStream.listen((dist) {
       _currentDistance = dist;
       notifyListeners();
 
-      // Auto-advance step when close enough
       if (dist < 1.0 && _status == NavigationStatus.active) {
         _advanceStep();
       }
     });
-
-    await _triggerHapticForStep();
   }
 
   Future<void> _advanceStep() async {
@@ -95,7 +140,9 @@ class NavigationViewModel extends ChangeNotifier {
       await _loggingService.endSession(_sessionId!);
     }
     await _bleService.disconnect();
+    await _positionProvider?.stop();
     _distanceSub?.cancel();
+    _positionSub?.cancel();
     _lastHapticLabel = 'hapticArrival';
     await _hapticService.triggerArrival();
     notifyListeners();
@@ -116,7 +163,9 @@ class NavigationViewModel extends ChangeNotifier {
       await _loggingService.endSession(_sessionId!);
     }
     await _bleService.disconnect();
+    await _positionProvider?.stop();
     _distanceSub?.cancel();
+    _positionSub?.cancel();
     notifyListeners();
   }
 
@@ -154,6 +203,8 @@ class NavigationViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _distanceSub?.cancel();
+    _positionSub?.cancel();
+    _positionProvider?.dispose();
     _bleService.dispose();
     super.dispose();
   }

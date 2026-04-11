@@ -1,26 +1,86 @@
 import 'dart:math';
 
-/// Target beacon identity — mirrors Python BeaconConfig constants.
+/// Beacon configuration data class
+class BeaconInfo {
+  final String mac;
+  final String uuid;
+  final int major;
+  final int minor;
+  final String name;
+
+  const BeaconInfo({
+    required this.mac,
+    required this.uuid,
+    required this.major,
+    required this.minor,
+    required this.name,
+  });
+}
+
+/// Target beacon identities — supports multiple beacons for navigation
 class BeaconConfig {
   BeaconConfig._();
 
-  static const String targetMac  = 'FD:E6:78:39:FC:F1';
-  static const String targetUuid = 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825';
-  static const int    targetMajor = 10011;
-  static const int    targetMinor = 19641;
-  static const String targetName  = 'Holy-IOT';
+  // Primary beacon (existing)
+  static const BeaconInfo beacon1 = BeaconInfo(
+    mac: 'FD:E6:78:39:FC:F1',
+    uuid: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
+    major: 10011,
+    minor: 19641,
+    name: 'Holy-IOT',
+  );
+
+  // Additional beacons for multi-beacon navigation
+  static const BeaconInfo beacon2 = BeaconInfo(
+    mac: 'C4:FA:A4:BE:58:C4',
+    uuid: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
+    major: 10011,
+    minor: 19641,
+    name: 'HOLY-IOT2',
+  );
+
+  static const BeaconInfo beacon3 = BeaconInfo(
+    mac: 'CE:7F:C3:D4:DB:13',
+    uuid: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
+    major: 10011,
+    minor: 19642,
+    name: 'HOLY-IOT3',
+  );
+
+  static const BeaconInfo beacon4 = BeaconInfo(
+    mac: 'C0:37:21:86:59:36',
+    uuid: 'FDA50693-A4E2-4FB1-AFCF-C6EB07647825',
+    major: 10011,
+    minor: 19643,
+    name: 'HOLY-IOT4',
+  );
+
+  // List of all configured beacons
+  static const List<BeaconInfo> allBeacons = [
+    beacon1,
+    beacon2,
+    beacon3,
+    beacon4
+  ];
+
+  // Legacy constants for backward compatibility
+  static String get targetMac => beacon1.mac;
+  static String get targetUuid => beacon1.uuid;
+  static int get targetMajor => beacon1.major;
+  static int get targetMinor => beacon1.minor;
+  static String get targetName => beacon1.name;
 }
 
 /// Data produced for each detected target advertisement.
 class BeaconReading {
-  final String  mac;
-  final String  uuid;
-  final int     major;
-  final int     minor;
-  final int     rssi;
-  final int     txPower;
+  final String mac;
+  final String uuid;
+  final int major;
+  final int minor;
+  final int rssi;
+  final int txPower;
   final double? distance;
-  final String  strength;
+  final String strength;
 
   const BeaconReading({
     required this.mac,
@@ -47,9 +107,9 @@ class IBeaconParser {
   /// the target; otherwise returns null.
   static BeaconReading? parse({
     required Map<int, List<int>> manufacturerData,
-    required int    rssi,
+    required int rssi,
     required String mac,
-    String?         localName,
+    String? localName,
   }) {
     final payload = manufacturerData[_appleCompanyId];
     if (payload == null || payload.length < 23) return null;
@@ -57,25 +117,29 @@ class IBeaconParser {
     // iBeacon type bytes: 0x02 0x15
     if (payload[0] != 0x02 || payload[1] != 0x15) return null;
 
-    final uuid    = _formatUuid(payload.sublist(2, 18));
-    final major   = (payload[18] << 8) | payload[19];
-    final minor   = (payload[20] << 8) | payload[21];
+    final uuid = _formatUuid(payload.sublist(2, 18));
+    final major = (payload[18] << 8) | payload[19];
+    final minor = (payload[20] << 8) | payload[21];
     // Tx power is a signed byte
     final txPower = payload[22] >= 128 ? payload[22] - 256 : payload[22];
 
-    if (!_isTarget(mac: mac.toUpperCase(), localName: localName ?? '',
-                   uuid: uuid, major: major, minor: minor)) {
+    if (!_isTarget(
+        mac: mac.toUpperCase(),
+        localName: localName ?? '',
+        uuid: uuid,
+        major: major,
+        minor: minor)) {
       return null;
     }
 
     final distance = _estimateDistance(rssi, txPower);
     return BeaconReading(
-      mac:      mac,
-      uuid:     uuid,
-      major:    major,
-      minor:    minor,
-      rssi:     rssi,
-      txPower:  txPower,
+      mac: mac,
+      uuid: uuid,
+      major: major,
+      minor: minor,
+      rssi: rssi,
+      txPower: txPower,
       distance: distance,
       strength: _signalLabel(rssi),
     );
@@ -88,8 +152,8 @@ class IBeaconParser {
     required String mac,
     required String localName,
     required String uuid,
-    required int    major,
-    required int    minor,
+    required int major,
+    required int minor,
   }) {
     if (mac == BeaconConfig.targetMac.toUpperCase()) return true;
 
@@ -125,10 +189,10 @@ class IBeaconParser {
         .map((b) => b.toRadixString(16).padLeft(2, '0'))
         .join()
         .toUpperCase();
-    return '${hex.substring(0,  8)}-'
-           '${hex.substring(8,  12)}-'
-           '${hex.substring(12, 16)}-'
-           '${hex.substring(16, 20)}-'
-           '${hex.substring(20, 32)}';
+    return '${hex.substring(0, 8)}-'
+        '${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-'
+        '${hex.substring(16, 20)}-'
+        '${hex.substring(20, 32)}';
   }
 }

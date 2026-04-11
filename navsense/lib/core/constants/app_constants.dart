@@ -4,7 +4,7 @@ class AppConstants {
   static const String appName = 'NavSense';
 
   /// Simulated route computation delay (≤3 s per SRS Spec 10).
-  static const Duration mockRouteDelay = Duration(milliseconds: 800);
+  static const Duration mockRouteDelay = Duration(milliseconds: 50);
 
   /// BLE scan interval for mock service.
   static const Duration bleScanInterval = Duration(seconds: 2);

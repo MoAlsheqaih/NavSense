@@ -1,10 +1,18 @@
+import 'ibeacon_parser.dart';
+
 /// Abstract BLE service interface.
 /// Concrete implementations (mock or real) are injected via GetIt.
 abstract class BleService {
-  /// Whether BLE is actively connected to the wearable.
+  /// Whether BLE is actively connected to any beacons.
   bool get isConnected;
 
-  /// Estimated distance to the next waypoint in meters.
+  /// Whether all configured beacons are connected.
+  bool get allBeaconsConnected;
+
+  /// Number of currently connected beacons.
+  int get connectedBeaconCount;
+
+  /// Estimated distance to the next waypoint in meters (aggregated from all beacons).
   Stream<double> get distanceStream;
 
   /// Last measured RSSI in dBm (0 if no reading yet).
@@ -16,13 +24,19 @@ abstract class BleService {
   /// Human-readable signal strength: VERY CLOSE / CLOSE / MEDIUM / FAR.
   String get signalStrength;
 
-  /// Scans for nearby NavSense wearable devices.
+  /// Stream of individual beacon readings for advanced navigation.
+  Stream<Map<String, BeaconReading>> get beaconReadingsStream;
+
+  /// Scans for nearby NavSense beacons.
   Stream<BleDevice> scanDevices();
 
-  /// Connects to the wearable with the given [deviceId].
+  /// Connects to all configured beacons simultaneously.
+  Future<void> connectAll();
+
+  /// Connects to the wearable with the given [deviceId] (legacy single connection).
   Future<void> connect(String deviceId);
 
-  /// Disconnects from the current wearable.
+  /// Disconnects from all beacons.
   Future<void> disconnect();
 
   /// Dispose resources.

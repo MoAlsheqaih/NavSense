@@ -31,16 +31,69 @@ class _FloorRoom {
 
 /// 9 rooms as defined in the notebook.
 const List<_FloorRoom> _kRooms = [
-  _FloorRoom(id: 'room_1', name: 'Room 1 (Top-Left)',      cx:  8, cy: 44, entrances: [(17,42),(17,43),(17,44)]),
-  _FloorRoom(id: 'room_2', name: 'Room 2 (Top-Right)',     cx: 24, cy: 45, entrances: [(23,41),(24,41),(25,41)]),
-  _FloorRoom(id: 'room_3', name: 'Room 3 (Mid-Left)',      cx:  8, cy: 31, entrances: [(17,27),(17,28),(17,29)]),
-  _FloorRoom(id: 'room_4', name: 'Room 4 (Mid-Right)',     cx: 24, cy: 31, entrances: [(23,37),(24,37),(25,37)]),
-  _FloorRoom(id: 'room_5', name: 'Room 5 (Low-Mid-Left)',  cx:  8, cy: 18, entrances: [(17,18),(17,19),(17,20)]),
-  _FloorRoom(id: 'room_6', name: 'Room 6 (Low-Mid-Right)', cx: 24, cy: 15, entrances: [(21,18),(21,19),(21,20)]),
-  _FloorRoom(id: 'room_7', name: 'Room 7 (Lower-Left)',    cx:  8, cy: 12, entrances: [(17,12),(17,13),(17,14)]),
-  _FloorRoom(id: 'room_8', name: 'Room 8 (Bot-Left)',      cx:  8, cy:  4, entrances: [(17,4),(17,5),(17,6)]),
-  _FloorRoom(id: 'room_9', name: 'Room 9 (Bot-Right)',     cx: 24, cy:  4, entrances: [(21,4),(21,5),(21,6)]),
+  _FloorRoom(
+      id: 'room_1',
+      name: 'Room 1 (Top-Left)',
+      cx: 8,
+      cy: 44,
+      entrances: [(17, 42), (17, 43), (17, 44)]),
+  _FloorRoom(
+      id: 'room_2',
+      name: 'Room 2 (Top-Right)',
+      cx: 24,
+      cy: 45,
+      entrances: [(23, 41), (24, 41), (25, 41)]),
+  _FloorRoom(
+      id: 'room_3',
+      name: 'Room 3 (Mid-Left)',
+      cx: 8,
+      cy: 31,
+      entrances: [(17, 27), (17, 28), (17, 29)]),
+  _FloorRoom(
+      id: 'room_4',
+      name: 'Room 4 (Mid-Right)',
+      cx: 24,
+      cy: 31,
+      entrances: [(23, 37), (24, 37), (25, 37)]),
+  _FloorRoom(
+      id: 'room_5',
+      name: 'Room 5 (Low-Mid-Left)',
+      cx: 8,
+      cy: 18,
+      entrances: [(17, 18), (17, 19), (17, 20)]),
+  _FloorRoom(
+      id: 'room_6',
+      name: 'Room 6 (Low-Mid-Right)',
+      cx: 24,
+      cy: 15,
+      entrances: [(21, 18), (21, 19), (21, 20)]),
+  _FloorRoom(
+      id: 'room_7',
+      name: 'Room 7 (Lower-Left)',
+      cx: 8,
+      cy: 12,
+      entrances: [(17, 12), (17, 13), (17, 14)]),
+  _FloorRoom(
+      id: 'room_8',
+      name: 'Room 8 (Bot-Left)',
+      cx: 8,
+      cy: 4,
+      entrances: [(17, 4), (17, 5), (17, 6)]),
+  _FloorRoom(
+      id: 'room_9',
+      name: 'Room 9 (Bot-Right)',
+      cx: 24,
+      cy: 4,
+      entrances: [(21, 4), (21, 5), (21, 6)]),
 ];
+
+Waypoint _roomWaypoint(_FloorRoom room) => Waypoint(
+      id: room.id,
+      name: room.name,
+      floor: 0,
+      x: room.cx.toDouble(),
+      y: room.cy.toDouble(),
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GRID BUILDING  (mirrors build_grid_from_floorplan)
@@ -108,7 +161,8 @@ class _Graph {
 _Graph _buildGraph(Map<(int, int), _CellType> grid) {
   final walkable = <(int, int)>{};
   for (final entry in grid.entries) {
-    if (entry.value == _CellType.corridor || entry.value == _CellType.entrance) {
+    if (entry.value == _CellType.corridor ||
+        entry.value == _CellType.entrance) {
       walkable.add(entry.key);
     }
   }
@@ -176,8 +230,8 @@ _Graph _buildGraph(Map<(int, int), _CellType> grid) {
 
 (List<double>, List<int>) _dijkstra(
     Map<int, List<(int, double)>> adj, int source, int nNodes) {
-  final dist    = List<double>.filled(nNodes, double.infinity);
-  final prev    = List<int>.filled(nNodes, -1);
+  final dist = List<double>.filled(nNodes, double.infinity);
+  final prev = List<int>.filled(nNodes, -1);
   final visited = List<bool>.filled(nNodes, false);
   dist[source] = 0;
 
@@ -304,39 +358,33 @@ List<RouteStep> _pathToSteps(
 
 String _dirLabel(TurnDirection d) {
   switch (d) {
-    case TurnDirection.left:    return 'Turn Left';
-    case TurnDirection.right:   return 'Turn Right';
-    case TurnDirection.arrived: return 'Arrived';
-    case TurnDirection.straight: return 'Go Straight';
+    case TurnDirection.left:
+      return 'Turn Left';
+    case TurnDirection.right:
+      return 'Turn Right';
+    case TurnDirection.arrived:
+      return 'Arrived';
+    case TurnDirection.straight:
+      return 'Go Straight';
   }
 }
 
 String _turnInstruction(TurnDirection d) {
   switch (d) {
-    case TurnDirection.left:     return 'instruction_turn_left';
-    case TurnDirection.right:    return 'instruction_turn_right';
-    case TurnDirection.arrived:  return 'instruction_arrived';
-    case TurnDirection.straight: return 'instruction_go_straight';
+    case TurnDirection.left:
+      return 'instruction_turn_left';
+    case TurnDirection.right:
+      return 'instruction_turn_right';
+    case TurnDirection.arrived:
+      return 'instruction_arrived';
+    case TurnDirection.straight:
+      return 'instruction_go_straight';
   }
 }
 
-Waypoint _roomWaypoint(_FloorRoom room) => Waypoint(
-      id: room.id,
-      name: room.name,
-      floor: 0,
-      x: room.cx.toDouble(),
-      y: room.cy.toDouble(),
-    );
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PUBLIC DATASOURCE
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Replaces MockRouteDatasource with real Dijkstra routing on the
-/// university floor plan defined in the notebook.
 class FloorRouteDatasource {
   late final _Graph _graph;
-  late final Map<String, int> _roomNodeIndex; // room id → node index
+  late final Map<String, int> _roomNodeIndex;
 
   FloorRouteDatasource() {
     final grid = _buildGrid();
@@ -346,33 +394,59 @@ class FloorRouteDatasource {
     };
   }
 
+  int? _findNearestNode(double x, double y) {
+    final gridX = x.round();
+    final gridY = y.round();
+
+    if (_graph.positions.isNotEmpty) {
+      for (int i = 0; i < _graph.positions.length; i++) {
+        final pos = _graph.positions[i];
+        if (pos.$1 == gridX && pos.$2 == gridY) {
+          return i;
+        }
+      }
+      for (int d = 1; d <= 3; d++) {
+        for (int i = 0; i < _graph.positions.length; i++) {
+          final pos = _graph.positions[i];
+          if ((pos.$1 - gridX).abs() <= d && (pos.$2 - gridY).abs() <= d) {
+            return i;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   /// Returns all 9 rooms as selectable [Waypoint]s.
-  List<Waypoint> getDestinations() =>
-      _kRooms.map(_roomWaypoint).toList();
+  List<Waypoint> getDestinations() => _kRooms.map(_roomWaypoint).toList();
 
   /// Computes a real Dijkstra route between [origin] and [destination].
-  Future<RoutePlan> computeRoute(
-      Waypoint origin, Waypoint destination) async {
+  Future<RoutePlan> computeRoute(Waypoint origin, Waypoint destination) async {
     await Future.delayed(AppConstants.mockRouteDelay);
 
-    final srcIdx = _roomNodeIndex[origin.id];
-    final dstIdx = _roomNodeIndex[destination.id];
+    // Try to find node index - first check room IDs, then check graph cells
+    // Round coordinates to find nearest cell
+    int? srcIdx = _roomNodeIndex[origin.id];
+    int? dstIdx = _roomNodeIndex[destination.id];
+
+    // If not found by ID, look up by x,y coordinates in the graph
+    srcIdx ??= _findNearestNode(origin.x, origin.y);
+    dstIdx ??= _findNearestNode(destination.x, destination.y);
 
     if (srcIdx == null || dstIdx == null || srcIdx == dstIdx) {
       return _fallbackPlan(origin, destination);
     }
 
-    final (dist, prev) =
-        _dijkstra(_graph.adj, srcIdx, _graph.positions.length);
+    final (dist, prev) = _dijkstra(_graph.adj, srcIdx, _graph.positions.length);
 
     if (dist[dstIdx] == double.infinity) {
       return _fallbackPlan(origin, destination);
     }
 
     final pathNodes = _reconstructPath(prev, dstIdx);
-    final destRoom   = _kRooms[dstIdx];
-    final steps      = _pathToSteps(pathNodes, _graph.positions, destRoom);
-    final totalDist  = dist[dstIdx] * _kMetersPerCell;
+    final destRoom = _kRooms[dstIdx];
+    final steps = _pathToSteps(pathNodes, _graph.positions, destRoom);
+    final totalDist = dist[dstIdx] * _kMetersPerCell;
 
     return RoutePlan(
       id: 'route_${DateTime.now().millisecondsSinceEpoch}',

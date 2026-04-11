@@ -44,12 +44,19 @@ class _HomeViewState extends State<_HomeView> {
         title: Text(l10n.appTitle),
         actions: [
           IconButton(
+            icon: const Icon(Icons.map),
+            tooltip: 'Simulation Mode',
+            onPressed: () => Navigator.pushNamed(
+              context,
+              AppRoutes.simulation,
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.radar),
             tooltip: 'Beacon Scanner',
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(
-                  builder: (_) => const BeaconScannerPage()),
+              MaterialPageRoute(builder: (_) => const BeaconScannerPage()),
             ),
           ),
         ],
@@ -72,7 +79,7 @@ class _HomeViewState extends State<_HomeView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Feature badge ──────────────────────────────────────────────
-          _FeatureBadge(
+          const _FeatureBadge(
             icon: Icons.route,
             label: 'Dijkstra Routing  •  9 Real Rooms',
             color: AppTheme.primaryColor,
@@ -80,7 +87,7 @@ class _HomeViewState extends State<_HomeView> {
           const SizedBox(height: 20),
 
           // ── Start room ────────────────────────────────────────────────
-          _SectionLabel(
+          const _SectionLabel(
             icon: Icons.my_location,
             text: 'Starting From',
             color: AppTheme.accentColor,
@@ -214,8 +221,7 @@ class _RoomGrid extends StatelessWidget {
               children: [
                 Icon(Icons.meeting_room,
                     size: 20,
-                    color:
-                        isSelected ? accentColor : AppTheme.darkOnMuted),
+                    color: isSelected ? accentColor : AppTheme.darkOnMuted),
                 const SizedBox(height: 4),
                 Text(
                   _shortName(room.name),
@@ -324,14 +330,14 @@ class _RouteSummaryChip extends StatelessWidget {
                 style: const TextStyle(
                     color: AppTheme.accentColor, fontWeight: FontWeight.w600)),
           ),
-          const Icon(Icons.arrow_forward, size: 16, color: AppTheme.darkOnMuted),
+          const Icon(Icons.arrow_forward,
+              size: 16, color: AppTheme.darkOnMuted),
           const SizedBox(width: 8),
           Expanded(
             child: Text(_shortName(to),
                 textAlign: TextAlign.end,
                 style: const TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontWeight: FontWeight.w600)),
+                    color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
           const Icon(Icons.flag, size: 10, color: AppTheme.primaryColor),

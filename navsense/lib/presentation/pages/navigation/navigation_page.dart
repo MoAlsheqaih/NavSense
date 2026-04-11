@@ -495,7 +495,7 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppTheme.darkCard,
         border: Border(top: BorderSide(color: AppTheme.darkBorder)),
       ),
