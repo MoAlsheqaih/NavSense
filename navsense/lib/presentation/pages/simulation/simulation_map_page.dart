@@ -19,15 +19,12 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   RoutePlan? _routePlan;
   RouteStep? _currentStep;
   double _distanceToNext = 0.0;
+  Waypoint? _customerPosition;
 
   // Simulation controls
   bool _isSimulationRunning = false;
   double _simulationSpeed = 1.0;
   Timer? _simulationTimer;
-
-  // Performance optimization - track what needs updating
-  bool _needsRouteUpdate = false;
-  bool _needsSimulationUpdate = false;
 
   @override
   Widget build(BuildContext context) {
@@ -124,7 +121,7 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: SimulationMapWidget(
-                        origin: _origin,
+                        origin: _customerPosition ?? _origin,
                         destination: _destination,
                         routePlan: _routePlan,
                         onOriginChanged: _onOriginChanged,
@@ -199,9 +196,9 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   void _onOriginChanged(Waypoint origin) {
     if (_origin == origin) return; // Avoid unnecessary updates
 
-    _needsRouteUpdate = true;
     setState(() {
       _origin = origin;
+      _customerPosition = origin;
       _routePlan = null;
       _currentStep = null;
       _distanceToNext = 0.0;
@@ -211,22 +208,22 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   void _onDestinationChanged(Waypoint destination) {
     if (_destination == destination) return; // Avoid unnecessary updates
 
-    _needsRouteUpdate = true;
     setState(() {
       _destination = destination;
     });
   }
 
   void _onRouteChanged(RoutePlan? routePlan) {
-    _needsRouteUpdate = false;
     setState(() {
       _routePlan = routePlan;
       if (routePlan != null && routePlan.steps.isNotEmpty) {
         _currentStep = routePlan.steps.first;
         _distanceToNext = routePlan.steps.first.distanceMeters;
+        _customerPosition = routePlan.steps.first.waypoint;
       } else {
         _currentStep = null;
         _distanceToNext = 0.0;
+        _customerPosition = _origin;
       }
     });
   }
@@ -234,7 +231,6 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   void _toggleSimulation() {
     if (_routePlan == null || _routePlan!.steps.isEmpty) return;
 
-    _needsSimulationUpdate = true;
     setState(() {
       _isSimulationRunning = !_isSimulationRunning;
     });
@@ -280,11 +276,12 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
           if (currentIndex < (_routePlan!.steps.length - 1)) {
             _currentStep = _routePlan!.steps[currentIndex + 1];
             _distanceToNext = _currentStep!.distanceMeters;
+            _customerPosition = _currentStep!.waypoint;
           } else {
             // Reached destination
             _stopSimulation();
             _isSimulationRunning = false;
-            _needsSimulationUpdate = true;
+            _customerPosition = _destination;
           }
         }
       });
@@ -294,7 +291,6 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   void _onSpeedChanged(double value) {
     if (_simulationSpeed == value) return; // Avoid unnecessary updates
 
-    _needsSimulationUpdate = true;
     setState(() {
       _simulationSpeed = value;
     });
@@ -307,14 +303,13 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
 
   void _resetSimulation() {
     _stopSimulation();
-    _needsRouteUpdate = true;
-    _needsSimulationUpdate = true;
     setState(() {
       _origin = null;
       _destination = null;
       _routePlan = null;
       _currentStep = null;
       _distanceToNext = 0.0;
+      _customerPosition = null;
       _isSimulationRunning = false;
       _simulationSpeed = 1.0;
     });
