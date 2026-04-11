@@ -15,12 +15,18 @@ class SimulationConfig {
   final double noiseRadius;
   final Waypoint destination;
 
+  /// Ordered list of waypoints the simulated user should walk through.
+  /// When provided, the position provider moves toward each waypoint in
+  /// sequence instead of wandering randomly.
+  final List<Waypoint> waypoints;
+
   const SimulationConfig({
-    this.speed = 0.5,
-    this.updateInterval = 1.0,
+    this.speed = 1.2,
+    this.updateInterval = 0.5,
     this.addNoise = true,
-    this.noiseRadius = 0.3,
+    this.noiseRadius = 0.08,
     required this.destination,
+    this.waypoints = const [],
   });
 
   SimulationConfig copyWith({
@@ -29,6 +35,7 @@ class SimulationConfig {
     bool? addNoise,
     double? noiseRadius,
     Waypoint? destination,
+    List<Waypoint>? waypoints,
   }) {
     return SimulationConfig(
       speed: speed ?? this.speed,
@@ -36,6 +43,7 @@ class SimulationConfig {
       addNoise: addNoise ?? this.addNoise,
       noiseRadius: noiseRadius ?? this.noiseRadius,
       destination: destination ?? this.destination,
+      waypoints: waypoints ?? this.waypoints,
     );
   }
 }

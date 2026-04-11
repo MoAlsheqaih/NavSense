@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:navsense/l10n/app_localizations.dart';
 import 'package:get_it/get_it.dart';
@@ -139,7 +140,10 @@ class _HomeViewState extends State<_HomeView> {
                             if (plan != null) {
                               nav.pushNamed(
                                 AppRoutes.navigation,
-                                arguments: plan,
+                                arguments: {
+                                  'plan': plan,
+                                  'useSimulation': kIsWeb,
+                                },
                               );
                             }
                           }

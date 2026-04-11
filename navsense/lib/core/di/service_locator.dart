@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get_it/get_it.dart';
 
 import '../../data/datasources/local_session_datasource.dart';
@@ -10,6 +11,7 @@ import '../../domain/usecases/compute_route_usecase.dart';
 import '../../domain/usecases/log_event_usecase.dart';
 import '../../domain/usecases/start_navigation_usecase.dart';
 import '../../services/ble/ble_service.dart';
+import '../../services/ble/mock_ble_service.dart';
 import '../../services/ble/real_ble_service.dart';
 import '../../services/haptic/haptic_service.dart';
 import '../../services/haptic/haptic_service_impl.dart';
@@ -46,7 +48,9 @@ Future<void> setupServiceLocator() async {
       () => StartNavigationUseCase(sl<SessionRepository>()));
 
   // ── Services ─────────────────────────────────────────────────────────────
-  sl.registerLazySingleton<BleService>(() => RealBleService());
+  sl.registerLazySingleton<BleService>(
+    () => kIsWeb ? MockBleService() : RealBleService(),
+  );
   sl.registerLazySingleton<HapticService>(() => HapticServiceImpl());
   sl.registerLazySingleton<RouteService>(
     () => MockRouteService(sl<FloorRouteDatasource>()),

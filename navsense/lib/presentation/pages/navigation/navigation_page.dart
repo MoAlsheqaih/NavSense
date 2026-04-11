@@ -13,8 +13,13 @@ import 'navigation_viewmodel.dart';
 
 class NavigationPage extends StatelessWidget {
   final RoutePlan? routePlan;
+  final bool useSimulation;
 
-  const NavigationPage({Key? key, this.routePlan}) : super(key: key);
+  const NavigationPage({
+    Key? key,
+    this.routePlan,
+    this.useSimulation = false,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +37,7 @@ class NavigationPage extends StatelessWidget {
         bleService: GetIt.I<BleService>(),
         hapticService: GetIt.I<HapticService>(),
         loggingService: GetIt.I<SessionLoggingService>(),
+        useSimulation: useSimulation,
       )..initialize(),
       child: const _NavigationView(),
     );

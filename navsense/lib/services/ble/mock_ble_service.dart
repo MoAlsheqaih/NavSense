@@ -12,14 +12,15 @@ class MockBleService implements BleService {
   StreamController<double>? _distanceController;
   StreamController<Map<String, BeaconReading>>? _beaconReadingsController;
   Timer? _distanceTimer;
+  Timer? _beaconReadingsTimer;
+  double _currentDistance = 15.0;
   final _random = Random();
 
   @override
   bool get isConnected => _connected;
 
   @override
-  bool get allBeaconsConnected =>
-      _connectedBeaconCount >= 4; // Simulate 4 beacons
+  bool get allBeaconsConnected => _connectedBeaconCount >= 4;
 
   @override
   int get connectedBeaconCount => _connectedBeaconCount;
@@ -38,9 +39,6 @@ class MockBleService implements BleService {
     if (_currentDistance < 8.0) return 'MEDIUM';
     return 'FAR';
   }
-
-  double get _currentDistance =>
-      (_distanceTimer != null) ? 5.0 : 15.0; // rough sim value
 
   @override
   Stream<double> get distanceStream {
@@ -70,30 +68,57 @@ class MockBleService implements BleService {
 
   @override
   Future<void> connectAll() async {
+    if (_connected) return;
     await Future.delayed(const Duration(milliseconds: 300));
     _connected = true;
-    _connectedBeaconCount = 4; // Simulate connecting to 4 beacons
+    _connectedBeaconCount = 4;
     _startDistanceSimulation();
     _startBeaconReadingsSimulation();
   }
 
   @override
   Future<void> connect(String deviceId) async {
+    if (_connected) return;
     await Future.delayed(const Duration(milliseconds: 300));
     _connected = true;
-    _connectedBeaconCount = 1; // Single connection for backward compatibility
+    _connectedBeaconCount = 1;
     _startDistanceSimulation();
   }
 
+  void _startDistanceSimulation() {
+    if (_distanceTimer != null) return;
+    _distanceController ??= StreamController<double>.broadcast();
+    _currentDistance = 15.0;
+
+    _distanceTimer = Timer.periodic(AppConstants.bleDistanceInterval, (_) {
+      if (!_connected) return;
+      // Approach waypoint with slight noise
+      _currentDistance = (_currentDistance -
+              0.3 +
+              (_random.nextDouble() * 0.1 - 0.05))
+          .clamp(0.0, 30.0);
+      // Reached waypoint — reset for next step simulation cycle
+      if (_currentDistance <= 0.2) {
+        _currentDistance = 8.0 + _random.nextDouble() * 4.0;
+      }
+      if (!(_distanceController?.isClosed ?? true)) {
+        _distanceController!.add(_currentDistance);
+      }
+    });
+  }
+
   void _startBeaconReadingsSimulation() {
+    if (_beaconReadingsTimer != null) return;
     _beaconReadingsController ??=
         StreamController<Map<String, BeaconReading>>.broadcast();
 
-    Timer.periodic(AppConstants.bleDistanceInterval, (_) {
+    _beaconReadingsTimer =
+        Timer.periodic(AppConstants.bleDistanceInterval, (_) {
+      if (!_connected) return;
       final readings = <String, BeaconReading>{};
       for (int i = 1; i <= _connectedBeaconCount; i++) {
         final beaconId = 'beacon-$i';
-        final distance = 5.0 + _random.nextDouble() * 10.0;
+        final distance = 2.0 + _random.nextDouble() * 8.0;
         readings[beaconId] = BeaconReading(
           mac: beaconId,
           uuid: 'mock-uuid-$i',
@@ -102,35 +127,17 @@ class MockBleService implements BleService {
           rssi: -60 - _random.nextInt(20),
           txPower: -59,
           distance: distance,
-          strength: distance < 3.0
-              ? 'CLOSE'
-              : distance < 8.0
-                  ? 'MEDIUM'
-                  : 'FAR',
+          strength: distance < 1.5
+              ? 'VERY CLOSE'
+              : distance < 4.0
+                  ? 'CLOSE'
+                  : distance < 8.0
+                      ? 'MEDIUM'
+                      : 'FAR',
         );
       }
       if (!(_beaconReadingsController?.isClosed ?? true)) {
         _beaconReadingsController!.add(readings);
-      }
-    });
-  }
-
-  @override
-  Future<void> disconnect() async {
-    _connected = false;
-    _stopDistanceSimulation();
-  }
-
-  void _startDistanceSimulation() {
-    _distanceController ??= StreamController<double>.broadcast();
-    double currentDistance = 15.0;
-
-    _distanceTimer = Timer.periodic(AppConstants.bleDistanceInterval, (_) {
-      // Simulate approaching a waypoint
-      currentDistance = (currentDistance - 0.3 + (_random.nextDouble() * 0.2))
-          .clamp(0.0, 30.0);
-      if (!(_distanceController?.isClosed ?? true)) {
-        _distanceController!.add(currentDistance);
       }
     });
   }
@@ -140,9 +147,23 @@ class MockBleService implements BleService {
     _distanceTimer = null;
   }
 
+  void _stopBeaconReadingsSimulation() {
+    _beaconReadingsTimer?.cancel();
+    _beaconReadingsTimer = null;
+  }
+
+  @override
+  Future<void> disconnect() async {
+    _connected = false;
+    _stopDistanceSimulation();
+    _stopBeaconReadingsSimulation();
+  }
+
   @override
   void dispose() {
+    _connected = false;
     _stopDistanceSimulation();
+    _stopBeaconReadingsSimulation();
     _distanceController?.close();
     _distanceController = null;
     _beaconReadingsController?.close();

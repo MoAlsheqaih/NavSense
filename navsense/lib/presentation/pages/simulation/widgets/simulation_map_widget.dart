@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/di/service_locator.dart';
 import '../../../../domain/entities/route_plan.dart';
@@ -26,6 +27,18 @@ class SimulationMapWidget extends StatefulWidget {
   final Function(RoutePlan?) onRouteChanged;
   final bool isInteractive;
 
+  /// Called the moment the user starts dragging the origin dot.
+  final VoidCallback? onDragStart;
+
+  /// Called when the drag gesture ends.
+  final VoidCallback? onDragEnd;
+
+  /// When false, map taps are ignored (drag is still allowed).
+  final bool tapEnabled;
+
+  /// Live 60-fps position notifier — only the canvas repaints when this changes.
+  final ValueListenable<Waypoint?>? liveOrigin;
+
   const SimulationMapWidget({
     super.key,
     this.origin,
@@ -35,6 +48,10 @@ class SimulationMapWidget extends StatefulWidget {
     required this.onDestinationChanged,
     required this.onRouteChanged,
     this.isInteractive = true,
+    this.onDragStart,
+    this.onDragEnd,
+    this.tapEnabled = true,
+    this.liveOrigin,
   });
 
   @override
@@ -46,18 +63,23 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   int _tapCount = 0;
   late RouteService _routeService;
   Timer? _routeCalculationTimer;
+  Timer? _dragRouteTimer;
   bool _isDragging = false;
-  Waypoint? _draggedOrigin;
+  bool _isComputingRoute = false;
 
   // Zoom and pan
   double _scale = 1.0;
   double _previousScale = 1.0;
   Offset _offset = Offset.zero;
   Offset _previousOffset = Offset.zero;
-  Offset? _dragStartPosition;
 
-  // Animation controller — drives dot pop on tap only; disposed when idle
-  // to avoid unnecessary rebuild ticks from AnimatedBuilder.
+  // Drag position — drives efficient per-frame repaints via ValueListenableBuilder
+  final ValueNotifier<Waypoint?> _dragOriginNotifier = ValueNotifier(null);
+
+  // Fallback notifier used when liveOrigin is not provided (never fires).
+  final ValueNotifier<Waypoint?> _noopPositionNotifier = ValueNotifier(null);
+
+  // Dot pop animation on tap
   late AnimationController _dotAnimationController;
   late Animation<double> _dotScaleAnimation;
 
@@ -69,8 +91,6 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   static const double _floorWidth = 29.0;
   static const double _floorHeight = 50.0;
 
-  // FIX: static final so these lists are shared across all widget instances,
-  // not re-allocated on every build.
   static final List<Offset> _corridorCells = [
     for (int x = 18; x <= 20; x++)
       for (int y = 0; y < 50; y++) Offset(x.toDouble(), y.toDouble()),
@@ -81,33 +101,15 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   ];
 
   static final List<Offset> _entranceCells = [
-    const Offset(17, 42),
-    const Offset(17, 43),
-    const Offset(17, 44),
-    const Offset(23, 41),
-    const Offset(24, 41),
-    const Offset(25, 41),
-    const Offset(17, 27),
-    const Offset(17, 28),
-    const Offset(17, 29),
-    const Offset(23, 37),
-    const Offset(24, 37),
-    const Offset(25, 37),
-    const Offset(17, 18),
-    const Offset(17, 19),
-    const Offset(17, 20),
-    const Offset(21, 18),
-    const Offset(21, 19),
-    const Offset(21, 20),
-    const Offset(17, 12),
-    const Offset(17, 13),
-    const Offset(17, 14),
-    const Offset(17, 4),
-    const Offset(17, 5),
-    const Offset(17, 6),
-    const Offset(21, 4),
-    const Offset(21, 5),
-    const Offset(21, 6),
+    const Offset(17, 42), const Offset(17, 43), const Offset(17, 44),
+    const Offset(23, 41), const Offset(24, 41), const Offset(25, 41),
+    const Offset(17, 27), const Offset(17, 28), const Offset(17, 29),
+    const Offset(23, 37), const Offset(24, 37), const Offset(25, 37),
+    const Offset(17, 18), const Offset(17, 19), const Offset(17, 20),
+    const Offset(21, 18), const Offset(21, 19), const Offset(21, 20),
+    const Offset(17, 12), const Offset(17, 13), const Offset(17, 14),
+    const Offset(17, 4),  const Offset(17, 5),  const Offset(17, 6),
+    const Offset(21, 4),  const Offset(21, 5),  const Offset(21, 6),
   ];
 
   @override
@@ -122,12 +124,16 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
     _dotScaleAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(parent: _dotAnimationController, curve: Curves.easeOut),
     );
+
   }
 
   @override
   void dispose() {
     _routeCalculationTimer?.cancel();
+    _dragRouteTimer?.cancel();
     _dotAnimationController.dispose();
+    _dragOriginNotifier.dispose();
+    _noopPositionNotifier.dispose();
     _routeResult.dispose();
     super.dispose();
   }
@@ -135,8 +141,6 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   @override
   void didUpdateWidget(SimulationMapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // FIX: when the parent pushes a new routePlan, sync it into the notifier
-    // so the painter always renders the current plan, not a stale one.
     if (oldWidget.routePlan != widget.routePlan) {
       _routeResult.value = RouteCalculationResult(
         routePlan: widget.routePlan,
@@ -145,21 +149,16 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
     }
   }
 
-  // ── Layout helper ─────────────────────────────────────────────────────────
+  // ── Layout ────────────────────────────────────────────────────────────────
 
-  /// Computes the shared scale + origin used by both world↔screen conversions.
-  /// Returns (scale, originX, originY) where originX/Y is the top-left pixel
-  /// of the floor rect inside the container.
   ({double scale, double ox, double oy}) _layoutParams(Size size) {
     const double padding = 20.0;
     final availableWidth = size.width - padding * 2;
     final availableHeight = size.height - padding * 2;
     final scale =
         math.min(availableWidth / _floorWidth, availableHeight / _floorHeight);
-    final floorWidthPx = _floorWidth * scale;
-    final floorHeightPx = _floorHeight * scale;
-    final ox = padding + (availableWidth - floorWidthPx) / 2;
-    final oy = padding + (availableHeight - floorHeightPx) / 2;
+    final ox = padding + (availableWidth - _floorWidth * scale) / 2;
+    final oy = padding + (availableHeight - _floorHeight * scale) / 2;
     return (scale: scale, ox: ox, oy: oy);
   }
 
@@ -167,48 +166,30 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
 
   Offset _worldToScreen(double x, double y, Size size) {
     final p = _layoutParams(size);
-    final base =
-        Offset(p.ox + x * p.scale, p.oy + (_floorHeight - y) * p.scale);
+    final base = Offset(p.ox + x * p.scale, p.oy + (_floorHeight - y) * p.scale);
     return base * _scale + _offset;
   }
 
-  Offset _baseWorldToScreen(double x, double y, Size size) {
-    final p = _layoutParams(size);
-    return Offset(p.ox + x * p.scale, p.oy + (_floorHeight - y) * p.scale);
-  }
-
   (double, double)? _screenToWorld(Offset screenPos, Size size) {
-    // Undo the interactive zoom/pan, then convert base coords.
-    return _baseScreenToWorld((screenPos - _offset) / _scale, size);
-  }
-
-  (double, double)? _baseScreenToWorld(Offset screenPos, Size size) {
     final p = _layoutParams(size);
-    final x = (screenPos.dx - p.ox) / p.scale;
-    final y = _floorHeight - (screenPos.dy - p.oy) / p.scale;
+    final local = (screenPos - _offset) / _scale;
+    final x = (local.dx - p.ox) / p.scale;
+    final y = _floorHeight - (local.dy - p.oy) / p.scale;
     if (x < 0 || x > _floorWidth || y < 0 || y > _floorHeight) return null;
     return (x, y);
   }
 
   // ── Pan constraint ─────────────────────────────────────────────────────────
 
-  void _constrainPan() {
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-
-    final size = renderBox.size;
-    // FIX: constrain against the *rendered* floor pixel size, not raw world
-    // units. The floor is drawn at _layoutParams(size).scale px per unit.
+  void _constrainPan(Size size) {
     final p = _layoutParams(size);
+    const double padding = 20.0;
     final renderedW = _floorWidth * p.scale * _scale;
     final renderedH = _floorHeight * p.scale * _scale;
-
-    const double padding = 20.0;
     final maxDx =
         (renderedW - size.width + padding * 2).clamp(0.0, double.infinity);
     final maxDy =
         (renderedH - size.height + padding * 2).clamp(0.0, double.infinity);
-
     _offset = Offset(
       _offset.dx.clamp(-maxDx, 0),
       _offset.dy.clamp(-maxDy, 0),
@@ -218,7 +199,7 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   // ── Gesture handlers ───────────────────────────────────────────────────────
 
   void _handleTap(TapDownDetails details) {
-    if (_isDragging) return;
+    if (_isDragging || !widget.tapEnabled) return;
 
     final RenderBox renderBox = context.findRenderObject() as RenderBox;
     final localPosition = renderBox.globalToLocal(details.globalPosition);
@@ -242,9 +223,6 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
       widget.onOriginChanged(waypoint);
     } else if (_tapCount == 2) {
       widget.onDestinationChanged(waypoint);
-
-      // FIX: guard against origin being null before force-unwrapping.
-      // Use the freshly tapped point as destination and the last known origin.
       final origin = widget.origin;
       if (origin != null) {
         _computeRouteDebounced(origin, waypoint);
@@ -257,15 +235,17 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
     _previousScale = _scale;
     _previousOffset = _offset;
 
-    if (widget.origin != null) {
+    // Use the live position (60fps notifier) as the tap target, fall back to widget.origin
+    final effectiveOrigin = widget.liveOrigin?.value ?? widget.origin;
+    if (effectiveOrigin != null) {
       final RenderBox renderBox = context.findRenderObject() as RenderBox;
       final localPosition = renderBox.globalToLocal(details.focalPoint);
       final originScreenPos =
-          _worldToScreen(widget.origin!.x, widget.origin!.y, renderBox.size);
-      // No need to convert worldPos — we only need the screen distance.
+          _worldToScreen(effectiveOrigin.x, effectiveOrigin.y, renderBox.size);
       if ((localPosition - originScreenPos).distance <= 40.0) {
         _isDragging = true;
-        _draggedOrigin = widget.origin;
+        _dragOriginNotifier.value = effectiveOrigin;
+        widget.onDragStart?.call();
       }
     }
 
@@ -273,45 +253,58 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
-    if (_isDragging && widget.origin != null) {
-      final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+
+    if (_isDragging) {
       final localPosition = renderBox.globalToLocal(details.focalPoint);
       final worldPos = _screenToWorld(localPosition, renderBox.size);
-      if (worldPos != null && _draggedOrigin != null) {
-        // Update dragged origin position immediately (no rebuild for smooth dragging)
-        _draggedOrigin = Waypoint(
-          id: _draggedOrigin!.id,
-          name: _draggedOrigin!.name,
+      if (worldPos != null) {
+        final newWaypoint = Waypoint(
+          id: _dragOriginNotifier.value?.id ??
+              'drag-${DateTime.now().millisecondsSinceEpoch}',
+          name: _dragOriginNotifier.value?.name ?? 'Dragged Point',
           floor: 0,
           x: worldPos.$1.clamp(0.0, _floorWidth),
           y: worldPos.$2.clamp(0.0, _floorHeight),
         );
+        // Update ValueNotifier — triggers repaint of only the painter subtree
+        _dragOriginNotifier.value = newWaypoint;
+
+        // Live route recomputation during drag (debounced, no loading flash)
+        if (widget.destination != null) {
+          _dragRouteTimer?.cancel();
+          _dragRouteTimer = Timer(const Duration(milliseconds: 80), () {
+            final dragWp = _dragOriginNotifier.value;
+            if (_isDragging && dragWp != null) {
+              _computeRoute(dragWp, widget.destination!, showLoading: false);
+            }
+          });
+        }
       }
     } else {
       _scale = (_previousScale * details.scale).clamp(0.5, 3.0);
       _offset = _previousOffset + details.focalPointDelta;
-      _constrainPan();
+      _constrainPan(renderBox.size);
       setState(() {});
     }
   }
 
   void _handleScaleEnd(ScaleEndDetails details) {
-    // End dragging
     if (_isDragging) {
       _isDragging = false;
-      _dragStartPosition = null;
-      // Update origin and compute route after drag ends
-      if (_draggedOrigin != null && widget.destination != null) {
-        widget.onOriginChanged(_draggedOrigin!);
-        _computeRoute(_draggedOrigin!, widget.destination!);
+      widget.onDragEnd?.call(); // notify page drag is done before route recompute
+      final finalWaypoint = _dragOriginNotifier.value;
+      _dragOriginNotifier.value = null;
+
+      if (finalWaypoint != null) {
+        widget.onOriginChanged(finalWaypoint);
+        if (widget.destination != null) {
+          _computeRoute(finalWaypoint, widget.destination!);
+        }
       }
-      _draggedOrigin = null;
     }
 
-    // Ensure minimum scale
-    if (_scale < 0.5) {
-      _scale = 0.5;
-    }
+    if (_scale < 0.5) _scale = 0.5;
     setState(() {});
   }
 
@@ -327,15 +320,28 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
   void _computeRouteDebounced(Waypoint origin, Waypoint destination,
       {int delay = 150}) {
     _routeCalculationTimer?.cancel();
-    _routeCalculationTimer = Timer(Duration(milliseconds: delay),
-        () => _computeRoute(origin, destination));
+    _routeCalculationTimer = Timer(
+      Duration(milliseconds: delay),
+      () => _computeRoute(origin, destination),
+    );
   }
 
-  Future<void> _computeRoute(Waypoint origin, Waypoint destination) async {
-    _routeResult.value = RouteCalculationResult(
-      routePlan: _routeResult.value.routePlan,
-      isCalculating: true,
-    );
+  Future<void> _computeRoute(
+    Waypoint origin,
+    Waypoint destination, {
+    bool showLoading = true,
+  }) async {
+    // Skip if another computation is already in progress
+    if (_isComputingRoute) return;
+    _isComputingRoute = true;
+
+    if (showLoading) {
+      _routeResult.value = RouteCalculationResult(
+        routePlan: _routeResult.value.routePlan,
+        isCalculating: true,
+      );
+    }
+
     try {
       final routePlan = await _routeService.computeRoute(origin, destination);
       _routeResult.value =
@@ -345,6 +351,8 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
       _routeResult.value =
           const RouteCalculationResult(routePlan: null, isCalculating: false);
       widget.onRouteChanged(null);
+    } finally {
+      _isComputingRoute = false;
     }
   }
 
@@ -352,75 +360,115 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
 
   @override
   Widget build(BuildContext context) {
-    // FIX: ValueListenableBuilder wraps both branches so the notifier drives
-    // repaints even in non-interactive mode. AnimatedBuilder sits inside only
-    // in interactive mode — avoids needless ticks otherwise.
     return Container(
       color: Colors.grey.shade50,
       child: ClipRect(
-        child: ValueListenableBuilder<RouteCalculationResult>(
-          valueListenable: _routeResult,
-          builder: (context, routeResult, _) {
-            final painter = _MapPainter(
-              origin: widget.origin,
-              destination: widget.destination,
-              routePlan: routeResult.routePlan ?? widget.routePlan,
-              corridorCells: _corridorCells,
-              entranceCells: _entranceCells,
-              isDragging: _isDragging,
-              dotScale: _dotScaleAnimation.value,
-              isCalculating: routeResult.isCalculating,
-            );
-
-            final content = Transform(
-              transform: Matrix4.identity()
-                ..translate(_offset.dx, _offset.dy)
-                ..scale(_scale),
-              child: CustomPaint(
-                painter: painter,
-                child: const SizedBox.expand(),
+        child: Stack(
+          children: [
+            // ── Map canvas ────────────────────────────────────────────────
+            GestureDetector(
+              onTapDown: widget.isInteractive ? _handleTap : null,
+              onScaleStart: widget.isInteractive ? _handleScaleStart : null,
+              onScaleUpdate: widget.isInteractive ? _handleScaleUpdate : null,
+              onScaleEnd: widget.isInteractive ? _handleScaleEnd : null,
+              child: ValueListenableBuilder<Waypoint?>(
+                valueListenable: _dragOriginNotifier,
+                builder: (_, dragOrigin, __) {
+                  return ValueListenableBuilder<RouteCalculationResult>(
+                    valueListenable: _routeResult,
+                    builder: (_, routeResult, __) {
+                      // Inner builder for the 60fps live position — only repaints
+                      // the canvas, not the parent subtree.
+                      final liveListenable =
+                          widget.liveOrigin ?? _noopPositionNotifier;
+                      return ValueListenableBuilder<Waypoint?>(
+                        valueListenable: liveListenable,
+                        builder: (_, livePos, __) {
+                          final effectiveOrigin =
+                              dragOrigin ?? livePos ?? widget.origin;
+                          return RepaintBoundary(
+                            child: AnimatedBuilder(
+                              animation: _dotScaleAnimation,
+                              builder: (_, __) => Transform.translate(
+                                offset: _offset,
+                                child: Transform.scale(
+                                  scale: _scale,
+                                  alignment: Alignment.topLeft,
+                                  child: CustomPaint(
+                                    painter: _MapPainter(
+                                      origin: effectiveOrigin,
+                                      destination: widget.destination,
+                                      routePlan: routeResult.routePlan ??
+                                          widget.routePlan,
+                                      corridorCells: _corridorCells,
+                                      entranceCells: _entranceCells,
+                                      isDragging: _isDragging,
+                                      dotScale: _dotScaleAnimation.value,
+                                    ),
+                                    child: const SizedBox.expand(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
               ),
-            );
+            ),
 
-            if (!widget.isInteractive) return content;
-
-            return GestureDetector(
-              onTapDown: _handleTap,
-              onScaleStart: _handleScaleStart,
-              onScaleUpdate: _handleScaleUpdate,
-              onScaleEnd: _handleScaleEnd,
-              // FIX: AnimatedBuilder only wraps the interactive branch —
-              // non-interactive mode never subscribes to animation ticks.
-              child: AnimatedBuilder(
-                animation: _dotScaleAnimation,
-                builder: (_, __) => Transform(
-                  transform: Matrix4.identity()
-                    ..translate(_offset.dx, _offset.dy)
-                    ..scale(_scale),
-                  child: CustomPaint(
-                    painter: _MapPainter(
-                      origin: _draggedOrigin ?? widget.origin,
-                      destination: widget.destination,
-                      routePlan: routeResult.routePlan ?? widget.routePlan,
-                      corridorCells: _corridorCells,
-                      entranceCells: _entranceCells,
-                      isDragging: _isDragging,
-                      dotScale: _dotScaleAnimation.value,
-                      isCalculating: routeResult.isCalculating,
-                    ),
-                    child: const SizedBox.expand(),
-                  ),
-                ),
-              ),
-            );
-          },
+            // ── Loading overlay (Flutter widget — spins natively) ─────────
+            ValueListenableBuilder<RouteCalculationResult>(
+              valueListenable: _routeResult,
+              builder: (_, result, __) {
+                return AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: result.isCalculating
+                      ? Container(
+                          key: const ValueKey('loading'),
+                          color: Colors.black12,
+                          child: const Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(
+                                  color: Colors.blue,
+                                  strokeWidth: 3,
+                                ),
+                                SizedBox(height: 12),
+                                Text(
+                                  'Calculating Route…',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black54,
+                                        offset: Offset(0, 1),
+                                        blurRadius: 3,
+                                      )
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Painter ────────────────────────────────────────────────────────────────
+// ── Painter ────────────────────────────────────────────────────────────────────
 
 class _MapPainter extends FloorGridPainter {
   final Waypoint? origin;
@@ -428,16 +476,30 @@ class _MapPainter extends FloorGridPainter {
   final RoutePlan? routePlan;
   final bool isDragging;
   final double dotScale;
-  final bool isCalculating;
 
-  // FIX: pre-allocate Paint objects here instead of allocating inside paint()
-  // on every frame.
+  // Pre-allocated paints — never allocate inside paint() on a hot path.
+  static final Paint _routeShadowPaint = Paint()
+    ..color = Colors.red.withValues(alpha: 0.25)
+    ..strokeWidth = 7
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
+
   static final Paint _routePaint = Paint()
-    ..color = Colors.red
-    ..strokeWidth = 3
-    ..style = PaintingStyle.stroke;
+    ..color = const Color(0xFFE53935)
+    ..strokeWidth = 3.5
+    ..style = PaintingStyle.stroke
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
 
   static final Paint _waypointPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _dotFillPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _dotStrokePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
+  static final Paint _dotGlowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 3;
 
   _MapPainter({
     required this.origin,
@@ -447,7 +509,6 @@ class _MapPainter extends FloorGridPainter {
     required List<Offset> entranceCells,
     required this.isDragging,
     required this.dotScale,
-    required this.isCalculating,
   }) : super(
           floorWidth: 29.0,
           floorHeight: 50.0,
@@ -456,170 +517,118 @@ class _MapPainter extends FloorGridPainter {
         );
 
   @override
+  bool shouldRepaint(_MapPainter old) =>
+      old.origin != origin ||
+      old.destination != destination ||
+      old.routePlan != routePlan ||
+      old.isDragging != isDragging ||
+      old.dotScale != dotScale;
+
+  @override
   void paint(Canvas canvas, Size size) {
     super.paint(canvas, size);
 
-    // Draw route path first (bottom layer) - hide during drag to avoid confusion
-    if (routePlan != null && !isDragging) _drawRoutePath(canvas, size);
+    // Route path — always visible, even during drag (shows ghost while recomputing)
+    if (routePlan != null) _drawRoutePath(canvas, size);
 
-    // Draw intermediate waypoint dots
-    _drawWaypoints(canvas, size);
+    // Waypoint dots along the route
+    if (routePlan != null) _drawWaypoints(canvas, size);
 
-    // Draw origin and destination on top
+    // Destination (green)
     if (destination != null) {
       _drawDot(canvas, size, destination!, Colors.green, 12, false);
     }
+    // Origin / drag position (blue)
     if (origin != null) {
       _drawDot(canvas, size, origin!, Colors.blue, 12, isDragging);
     }
+    // Drag label
     if (isDragging && origin != null) {
       _drawDragFeedback(canvas, size, origin!);
     }
-
-    // FIX: draw loading indicator LAST so it overlays everything, but still
-    // shows the existing route and dots beneath the semi-transparent overlay.
-    if (isCalculating) _drawLoadingIndicator(canvas, size);
   }
 
   void _drawRoutePath(Canvas canvas, Size size) {
-    if (routePlan!.steps.isEmpty) return;
+    final steps = routePlan!.steps;
+    if (steps.length < 2) return;
 
     final path = Path();
-    for (int i = 0; i < routePlan!.steps.length - 1; i++) {
-      final startPos = worldToScreen(
-          routePlan!.steps[i].waypoint.x, routePlan!.steps[i].waypoint.y, size);
-      final endPos = worldToScreen(routePlan!.steps[i + 1].waypoint.x,
-          routePlan!.steps[i + 1].waypoint.y, size);
-      path.moveTo(startPos.dx, startPos.dy);
-      path.lineTo(endPos.dx, endPos.dy);
+    final first =
+        worldToScreen(steps[0].waypoint.x, steps[0].waypoint.y, size);
+    path.moveTo(first.dx, first.dy);
+
+    for (int i = 1; i < steps.length; i++) {
+      final pos =
+          worldToScreen(steps[i].waypoint.x, steps[i].waypoint.y, size);
+      path.lineTo(pos.dx, pos.dy);
     }
 
-    // FIX: removed duplicate `paint` variable — only one Paint is needed.
-    _drawDashedPath(canvas, path, _routePaint, dashWidth: 8, dashSpace: 4);
+    // Shadow pass for visual depth
+    canvas.drawPath(path, _routeShadowPaint);
+    // Solid line pass
+    canvas.drawPath(path, _routePaint);
   }
 
   void _drawWaypoints(Canvas canvas, Size size) {
-    for (final step in routePlan?.steps ?? const []) {
-      _waypointPaint.color = Colors.grey.shade400;
+    for (final step in routePlan!.steps) {
       final pos = worldToScreen(step.waypoint.x, step.waypoint.y, size);
-      canvas.drawCircle(pos, 4, _waypointPaint);
+      _waypointPaint.color = Colors.grey.shade400;
+      canvas.drawCircle(pos, 3.5, _waypointPaint);
     }
   }
 
   void _drawDot(Canvas canvas, Size size, Waypoint waypoint, Color color,
       double radius, bool isBeingDragged) {
     final pos = worldToScreen(waypoint.x, waypoint.y, size);
-    final effectiveRadius = radius * dotScale;
-
-    final paint = Paint()..style = PaintingStyle.fill;
+    final r = radius * dotScale;
 
     if (isBeingDragged) {
-      paint.color = color.withValues(alpha: 0.3);
-      canvas.drawCircle(pos, effectiveRadius * 1.5, paint);
+      // Outer glow ring during drag
+      _dotFillPaint.color = color.withValues(alpha: 0.18);
+      canvas.drawCircle(pos, r * 2.2, _dotFillPaint);
     }
 
-    paint.color = color;
-    canvas.drawCircle(pos, effectiveRadius, paint);
+    // Filled circle
+    _dotFillPaint.color = color;
+    canvas.drawCircle(pos, r, _dotFillPaint);
 
-    paint
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawCircle(pos, effectiveRadius, paint);
+    // White stroke border
+    _dotStrokePaint.color = Colors.white;
+    canvas.drawCircle(pos, r, _dotStrokePaint);
 
     if (isBeingDragged) {
-      paint
-        ..color = color.withValues(alpha: 0.5)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3;
-      canvas.drawCircle(pos, effectiveRadius * 1.3, paint);
+      // Animated ripple ring
+      _dotGlowPaint.color = color.withValues(alpha: 0.5);
+      canvas.drawCircle(pos, r * 1.5, _dotGlowPaint);
     }
-  }
-
-  void _drawLoadingIndicator(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-
-    // Semi-transparent overlay — lower alpha so underlying route remains
-    // visible and users have context while the new route calculates.
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..color = Colors.black.withValues(alpha: 0.25)
-        ..style = PaintingStyle.fill,
-    );
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: 30.0),
-      0,
-      math.pi * 1.5,
-      false,
-      Paint()
-        ..color = Colors.blue
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4.0
-        ..strokeCap = StrokeCap.round,
-    );
-
-    final textPainter = TextPainter(
-      text: const TextSpan(
-        text: 'Calculating Route...',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          shadows: [
-            Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 2)
-          ],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    )..layout();
-    textPainter.paint(canvas, center + Offset(-textPainter.width / 2, 50));
   }
 
   void _drawDragFeedback(Canvas canvas, Size size, Waypoint waypoint) {
     final pos = worldToScreen(waypoint.x, waypoint.y, size);
 
-    (TextPainter(
-      text: const TextSpan(
-        text: 'DRAGGING',
-        style: TextStyle(
-            color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold),
+    _paintText(
+      canvas,
+      'DRAGGING',
+      pos + const Offset(-25, -38),
+      const TextStyle(
+        color: Colors.blue,
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
       ),
-      textDirection: TextDirection.ltr,
-    )..layout())
-        .paint(canvas, pos + const Offset(-25, -35));
-
-    (TextPainter(
-      text: TextSpan(
-        text:
-            '(${waypoint.x.toStringAsFixed(1)}, ${waypoint.y.toStringAsFixed(1)})',
-        style: TextStyle(color: Colors.grey.shade700, fontSize: 10),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout())
-        .paint(canvas, pos + const Offset(-30, 18));
+    );
+    _paintText(
+      canvas,
+      '(${waypoint.x.toStringAsFixed(1)}, ${waypoint.y.toStringAsFixed(1)})',
+      pos + const Offset(-28, 18),
+      TextStyle(color: Colors.grey.shade700, fontSize: 10),
+    );
   }
 
-  void _drawDashedPath(Canvas canvas, Path path, Paint paint,
-      {double dashWidth = 8, double dashSpace = 4}) {
-    for (final metric in path.computeMetrics()) {
-      double distance = 0;
-      bool draw = true;
-      while (distance < metric.length) {
-        final end =
-            math.min(distance + (draw ? dashWidth : dashSpace), metric.length);
-        if (draw) {
-          final a = metric.getTangentForOffset(distance);
-          final b = metric.getTangentForOffset(end);
-          if (a != null && b != null) {
-            canvas.drawLine(a.position, b.position, paint);
-          }
-        }
-        distance = end;
-        draw = !draw;
-      }
-    }
+  void _paintText(Canvas canvas, String text, Offset offset, TextStyle style) {
+    (TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout())
+        .paint(canvas, offset);
   }
 }

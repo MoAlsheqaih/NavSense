@@ -19,9 +19,19 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const ShellPage());
 
       case AppRoutes.navigation:
-        final plan = settings.arguments as RoutePlan?;
+        final args = settings.arguments;
+        final RoutePlan? plan;
+        final bool useSimulation;
+        if (args is Map<String, dynamic>) {
+          plan = args['plan'] as RoutePlan?;
+          useSimulation = (args['useSimulation'] as bool?) ?? false;
+        } else {
+          plan = args as RoutePlan?;
+          useSimulation = false;
+        }
         return MaterialPageRoute(
-          builder: (_) => NavigationPage(routePlan: plan),
+          builder: (_) =>
+              NavigationPage(routePlan: plan, useSimulation: useSimulation),
         );
 
       case AppRoutes.simulation:

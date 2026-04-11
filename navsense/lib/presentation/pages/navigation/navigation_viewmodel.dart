@@ -41,6 +41,9 @@ class NavigationViewModel extends ChangeNotifier {
   StreamSubscription<Waypoint>? _positionSub;
   Waypoint? _currentPosition;
 
+  /// Prevents concurrent invocations of [_advanceStep].
+  bool _advancing = false;
+
   String? get sessionId => _sessionId;
   int get currentStepIndex => _currentStepIndex;
   double get currentDistance => _currentDistance;
@@ -77,13 +80,16 @@ class NavigationViewModel extends ChangeNotifier {
   }
 
   Future<void> _initializeSimulation() async {
+    final waypoints = routePlan.steps.map((s) => s.waypoint).toList();
+
     _positionProvider = SimulatedPositionProvider(
       config: SimulationConfig(
         destination: routePlan.destination,
-        speed: 0.5,
-        updateInterval: 1.0,
+        waypoints: waypoints,
+        speed: 1.2,
+        updateInterval: 0.5,
         addNoise: true,
-        noiseRadius: 0.3,
+        noiseRadius: 0.08,
       ),
     );
 
@@ -95,7 +101,9 @@ class NavigationViewModel extends ChangeNotifier {
       _currentDistance = _calculateDistanceToWaypoint(position, nextWaypoint);
       notifyListeners();
 
-      if (_currentDistance < 1.0 && _status == NavigationStatus.active) {
+      if (_currentDistance < 1.0 &&
+          _status == NavigationStatus.active &&
+          !_advancing) {
         _advanceStep();
       }
     });
@@ -108,26 +116,32 @@ class NavigationViewModel extends ChangeNotifier {
       _currentDistance = dist;
       notifyListeners();
 
-      if (dist < 1.0 && _status == NavigationStatus.active) {
+      if (dist < 1.0 && _status == NavigationStatus.active && !_advancing) {
         _advanceStep();
       }
     });
   }
 
   Future<void> _advanceStep() async {
-    if (_currentStepIndex >= routePlan.steps.length - 1) {
-      await _arrive();
-      return;
-    }
-    _currentStepIndex++;
-    notifyListeners();
+    if (_advancing) return;
+    _advancing = true;
+    try {
+      if (_currentStepIndex >= routePlan.steps.length - 1) {
+        await _arrive();
+        return;
+      }
+      _currentStepIndex++;
+      notifyListeners();
 
-    final step = routePlan.steps[_currentStepIndex];
-    if (step.direction == TurnDirection.arrived) {
-      await _arrive();
-    } else {
-      await _logTurnEvent(step.direction);
-      await _triggerHapticForStep();
+      final step = routePlan.steps[_currentStepIndex];
+      if (step.direction == TurnDirection.arrived) {
+        await _arrive();
+      } else {
+        await _logTurnEvent(step.direction);
+        await _triggerHapticForStep();
+      }
+    } finally {
+      _advancing = false;
     }
   }
 
@@ -205,7 +219,7 @@ class NavigationViewModel extends ChangeNotifier {
     _distanceSub?.cancel();
     _positionSub?.cancel();
     _positionProvider?.dispose();
-    _bleService.dispose();
+    // BleService is a GetIt singleton — do not dispose it here.
     super.dispose();
   }
 }
