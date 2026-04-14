@@ -35,8 +35,13 @@ class Waypoint {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) || other is Waypoint && id == other.id;
+      identical(this, other) ||
+      other is Waypoint &&
+          id == other.id &&
+          floor == other.floor &&
+          x == other.x &&
+          y == other.y;
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => Object.hash(id, floor, x, y);
 }

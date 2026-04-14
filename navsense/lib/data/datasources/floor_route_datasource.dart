@@ -394,27 +394,24 @@ class FloorRouteDatasource {
     };
   }
 
+  /// Finds the closest graph node to (x, y) by Euclidean distance.
+  /// Scans all ~1,450 nodes — fast enough for this grid size.
+  /// Never returns null unless the graph is empty.
   int? _findNearestNode(double x, double y) {
-    final gridX = x.round();
-    final gridY = y.round();
-
-    if (_graph.positions.isNotEmpty) {
-      for (int i = 0; i < _graph.positions.length; i++) {
-        final pos = _graph.positions[i];
-        if (pos.$1 == gridX && pos.$2 == gridY) {
-          return i;
-        }
-      }
-      for (int d = 1; d <= 3; d++) {
-        for (int i = 0; i < _graph.positions.length; i++) {
-          final pos = _graph.positions[i];
-          if ((pos.$1 - gridX).abs() <= d && (pos.$2 - gridY).abs() <= d) {
-            return i;
-          }
-        }
+    if (_graph.positions.isEmpty) return null;
+    int? bestIdx;
+    double bestDistSq = double.infinity;
+    for (int i = 0; i < _graph.positions.length; i++) {
+      final pos = _graph.positions[i];
+      final dx = pos.$1 - x;
+      final dy = pos.$2 - y;
+      final distSq = dx * dx + dy * dy;
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        bestIdx = i;
       }
     }
-    return null;
+    return bestIdx;
   }
 
   /// Returns all 9 rooms as selectable [Waypoint]s.
@@ -444,7 +441,18 @@ class FloorRouteDatasource {
     }
 
     final pathNodes = _reconstructPath(prev, dstIdx);
-    final destRoom = _kRooms[dstIdx];
+    // dstIdx may point to a corridor/entrance node (index >= nRooms) when the
+    // user taps an arbitrary position. Synthesise a _FloorRoom so _pathToSteps
+    // can label the final "arrived" step correctly.
+    final destRoom = dstIdx < _kRooms.length
+        ? _kRooms[dstIdx]
+        : _FloorRoom(
+            id: destination.id,
+            name: destination.name,
+            cx: destination.x.round(),
+            cy: destination.y.round(),
+            entrances: const [],
+          );
     final steps = _pathToSteps(pathNodes, _graph.positions, destRoom);
     final totalDist = dist[dstIdx] * _kMetersPerCell;
 
@@ -458,20 +466,31 @@ class FloorRouteDatasource {
     );
   }
 
+  /// Returns a straight-line 2-step plan so the route path always draws,
+  /// even when Dijkstra cannot find a connected path.
   RoutePlan _fallbackPlan(Waypoint origin, Waypoint destination) {
+    final dist = sqrt(pow(origin.x - destination.x, 2) +
+            pow(origin.y - destination.y, 2)) *
+        _kMetersPerCell;
     return RoutePlan(
       id: 'fallback_${DateTime.now().millisecondsSinceEpoch}',
       origin: origin,
       destination: destination,
       steps: [
         RouteStep(
+          waypoint: origin,
+          direction: TurnDirection.straight,
+          instruction: 'instruction_go_straight',
+          distanceMeters: dist,
+        ),
+        RouteStep(
           waypoint: destination,
           direction: TurnDirection.arrived,
           instruction: 'instruction_arrived',
           distanceMeters: 0,
-        )
+        ),
       ],
-      estimatedDuration: Duration.zero,
+      estimatedDuration: Duration(seconds: (dist / 1.2).round()),
     );
   }
 }

@@ -218,16 +218,23 @@ class _SimulationMapWidgetState extends State<SimulationMapWidget>
         .forward()
         .then((_) => _dotAnimationController.reverse());
 
-    _tapCount++;
-    if (_tapCount == 1) {
+    if (widget.destination != null) {
+      // Destination is locked — every tap repositions only the customer (origin)
+      // and recomputes the route to the existing destination.
       widget.onOriginChanged(waypoint);
-    } else if (_tapCount == 2) {
-      widget.onDestinationChanged(waypoint);
-      final origin = widget.origin;
-      if (origin != null) {
-        _computeRouteDebounced(origin, waypoint);
+      _computeRoute(waypoint, widget.destination!);
+    } else {
+      _tapCount++;
+      if (_tapCount == 1) {
+        widget.onOriginChanged(waypoint);
+      } else if (_tapCount == 2) {
+        widget.onDestinationChanged(waypoint);
+        final origin = widget.origin;
+        if (origin != null) {
+          _computeRouteDebounced(origin, waypoint);
+        }
+        _tapCount = 0;
       }
-      _tapCount = 0;
     }
   }
 
@@ -518,7 +525,11 @@ class _MapPainter extends FloorGridPainter {
 
   @override
   bool shouldRepaint(_MapPainter old) =>
-      old.origin != origin ||
+      // Compare origin by coordinates, not id — the 60-fps sim-pos waypoint
+      // always has id 'sim-pos', so Waypoint.== would always return false
+      // and the canvas would never repaint during simulation.
+      old.origin?.x != origin?.x ||
+      old.origin?.y != origin?.y ||
       old.destination != destination ||
       old.routePlan != routePlan ||
       old.isDragging != isDragging ||
@@ -550,16 +561,17 @@ class _MapPainter extends FloorGridPainter {
 
   void _drawRoutePath(Canvas canvas, Size size) {
     final steps = routePlan!.steps;
-    if (steps.length < 2) return;
+    if (steps.isEmpty) return;
 
+    // Start from the true origin so the line connects to the blue dot,
+    // then draw through every turn waypoint to the destination.
     final path = Path();
-    final first =
-        worldToScreen(steps[0].waypoint.x, steps[0].waypoint.y, size);
-    path.moveTo(first.dx, first.dy);
+    final originPos =
+        worldToScreen(routePlan!.origin.x, routePlan!.origin.y, size);
+    path.moveTo(originPos.dx, originPos.dy);
 
-    for (int i = 1; i < steps.length; i++) {
-      final pos =
-          worldToScreen(steps[i].waypoint.x, steps[i].waypoint.y, size);
+    for (final step in steps) {
+      final pos = worldToScreen(step.waypoint.x, step.waypoint.y, size);
       path.lineTo(pos.dx, pos.dy);
     }
 

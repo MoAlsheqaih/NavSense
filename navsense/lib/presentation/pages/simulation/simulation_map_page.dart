@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show sqrt;
 import 'package:flutter/material.dart';
 import '../../../../domain/entities/route_plan.dart';
 import '../../../../domain/entities/waypoint.dart';
@@ -104,11 +105,24 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   void _buildSegments(RoutePlan plan) {
     _segments = [];
     _totalRouteMeters = 0;
-    for (int i = 0; i < plan.steps.length - 1; i++) {
-      final from = plan.steps[i].waypoint;
-      final to = plan.steps[i + 1].waypoint;
-      final length = plan.steps[i].distanceMeters;
-      if (length > 0) {
+
+    // Build ordered waypoints: true origin first, then every step waypoint.
+    // This ensures the animation starts at the tapped/dragged position and
+    // the route line connects from origin through all turn points to destination.
+    // 1 grid cell = 0.5 m (matches _kMetersPerCell in floor_route_datasource.dart).
+    const double metersPerCell = 0.5;
+    final allWaypoints = <Waypoint>[
+      plan.origin,
+      ...plan.steps.map((s) => s.waypoint),
+    ];
+
+    for (int i = 0; i < allWaypoints.length - 1; i++) {
+      final from = allWaypoints[i];
+      final to = allWaypoints[i + 1];
+      final dx = to.x - from.x;
+      final dy = to.y - from.y;
+      final length = sqrt(dx * dx + dy * dy) * metersPerCell;
+      if (length > 0.001) {
         _segments.add(_RouteSegment(from: from, to: to, length: length));
         _totalRouteMeters += length;
       }
@@ -210,10 +224,22 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
 
   /// Called when the user taps to place / update the origin.
   void _onOriginChanged(Waypoint origin) {
-    setState(() {
-      _origin = origin;
-      if (_state == _SimState.idle) _state = _SimState.originSet;
-    });
+    if (_destination != null) {
+      // Destination is locked — only reposition the customer.
+      // If simulation is running, pause it; _onRouteChanged will auto-resume
+      // once the widget delivers the recomputed route.
+      if (_state == _SimState.simulating) {
+        _wasSimulating = true;
+        _pauseSimulation();
+      }
+      setState(() => _origin = origin);
+      // Route recomputation is triggered by SimulationMapWidget._computeRoute.
+    } else {
+      setState(() {
+        _origin = origin;
+        if (_state == _SimState.idle) _state = _SimState.originSet;
+      });
+    }
   }
 
   /// Called when the user taps to place / update the destination.
@@ -327,8 +353,9 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
       _state == _SimState.simulating ||
       _state == _SimState.paused;
 
-  bool get _tapEnabled =>
-      _state == _SimState.idle || _state == _SimState.originSet;
+  /// Taps are enabled in every state except `arrived`.
+  /// After the destination is locked, taps only reposition the customer (origin).
+  bool get _tapEnabled => _state != _SimState.arrived;
 
   @override
   Widget build(BuildContext context) {
