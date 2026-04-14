@@ -3,6 +3,7 @@ import 'dart:math' show sqrt;
 import 'package:flutter/material.dart';
 import '../../../../domain/entities/route_plan.dart';
 import '../../../../domain/entities/waypoint.dart';
+import '../../../../l10n/app_localizations.dart';
 import 'widgets/instructions_panel.dart';
 import 'widgets/simulation_map_widget.dart';
 
@@ -372,79 +373,350 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
           ),
         ],
       ),
-      body: Row(
-        children: [
-          // ── Left panel ───────────────────────────────────────────────────
-          SizedBox(
-            width: 320,
-            child: InstructionsPanel(
-              currentStep: _currentStep,
-              distanceToNext: _distanceToNextWaypoint,
-              currentStepIndex: _currentStepIndex,
-              totalSteps: _routePlan?.steps.length ?? 0,
-              isSimulationRunning: _state == _SimState.simulating,
-              simulationSpeed: _simSpeed,
-              onToggleSimulation: _canToggle ? _toggleSimulation : null,
-              onResetSimulation: _resetSimulation,
-              onSpeedChanged: _onSpeedChanged,
-              remainingMeters: _remainingMeters,
-              etaSeconds: _etaSeconds,
-            ),
-          ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return constraints.maxWidth < 600
+              ? _buildMobileLayout(context)
+              : _buildDesktopLayout(context);
+        },
+      ),
+    );
+  }
 
-          // ── Right panel (map) ────────────────────────────────────────────
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
+  // ── Desktop layout (width ≥ 600 px) — original side-by-side Row ──────────
+
+  Widget _buildDesktopLayout(BuildContext context) {
+    return Row(
+      children: [
+        // ── Left panel ─────────────────────────────────────────────────────
+        SizedBox(
+          width: 320,
+          child: InstructionsPanel(
+            currentStep: _currentStep,
+            distanceToNext: _distanceToNextWaypoint,
+            currentStepIndex: _currentStepIndex,
+            totalSteps: _routePlan?.steps.length ?? 0,
+            isSimulationRunning: _state == _SimState.simulating,
+            simulationSpeed: _simSpeed,
+            onToggleSimulation: _canToggle ? _toggleSimulation : null,
+            onResetSimulation: _resetSimulation,
+            onSpeedChanged: _onSpeedChanged,
+            remainingMeters: _remainingMeters,
+            etaSeconds: _etaSeconds,
+          ),
+        ),
+
+        // ── Right panel (map) ───────────────────────────────────────────────
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Header — Flexible prevents overflow on narrow desktop windows
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Flexible(
+                      child: Text(
                         'Floor Plan',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      _StateChip(state: _state),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  _buildLegend(),
-                  const SizedBox(height: 12),
-
-                  // Interactive map
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: SimulationMapWidget(
-                        origin: _origin,
-                        liveOrigin: _positionNotifier,
-                        destination: _destination,
-                        routePlan: _routePlan,
-                        onOriginChanged: _onOriginChanged,
-                        onDestinationChanged: _onDestinationChanged,
-                        onRouteChanged: _onRouteChanged,
-                        onDragStart: _onDragStart,
-                        onDragEnd: _onDragEnd,
-                        tapEnabled: _tapEnabled,
-                        isInteractive: _state != _SimState.arrived,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    _StateChip(state: _state),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _buildLegend(),
+                const SizedBox(height: 12),
+
+                // Interactive map
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: _buildMapWidget(),
                   ),
-                  const SizedBox(height: 12),
-                  _HintBar(state: _state),
-                ],
+                ),
+                const SizedBox(height: 12),
+                _HintBar(state: _state),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Mobile layout (width < 600 px) — stacked map on top, panel below ─────
+
+  Widget _buildMobileLayout(BuildContext context) {
+    return Column(
+      children: [
+        // ── Map section (top ~58 %) ─────────────────────────────────────────
+        Expanded(
+          flex: 58,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: Column(
+              children: [
+                // Compact header: legend + state chip on one row
+                Row(
+                  children: [
+                    Expanded(child: _buildLegend()),
+                    const SizedBox(width: 8),
+                    _StateChip(state: _state),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // Map canvas
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: _buildMapWidget(),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                _HintBar(state: _state),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Controls section (bottom ~42 %) ────────────────────────────────
+        Expanded(
+          flex: 42,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: _buildMobilePanel(context),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Shared map widget instance ────────────────────────────────────────────
+
+  Widget _buildMapWidget() {
+    return SimulationMapWidget(
+      origin: _origin,
+      liveOrigin: _positionNotifier,
+      destination: _destination,
+      routePlan: _routePlan,
+      onOriginChanged: _onOriginChanged,
+      onDestinationChanged: _onDestinationChanged,
+      onRouteChanged: _onRouteChanged,
+      onDragStart: _onDragStart,
+      onDragEnd: _onDragEnd,
+      tapEnabled: _tapEnabled,
+      isInteractive: _state != _SimState.arrived,
+    );
+  }
+
+  // ── Mobile panel ──────────────────────────────────────────────────────────
+
+  Widget _buildMobilePanel(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildMobileDirectionCard(l10n),
+        const SizedBox(height: 8),
+        _buildMobileMetrics(),
+        const SizedBox(height: 8),
+        _buildMobileControls(),
+      ],
+    );
+  }
+
+  Widget _buildMobileDirectionCard(AppLocalizations l10n) {
+    final direction = _currentStep?.direction;
+    final color = _mobileDirectionColor(direction);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(_mobileDirectionIcon(direction), color: color, size: 32),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              direction != null
+                  ? _mobileDirectionLabel(l10n, direction)
+                  : l10n.homeComputingRoute,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: color,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildMobileMetrics() {
+    final etaMinutes = (_etaSeconds / 60).floor();
+    final etaSecs = (_etaSeconds % 60).floor();
+    final etaLabel =
+        etaMinutes > 0 ? '${etaMinutes}m ${etaSecs}s' : '${etaSecs}s';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _mobileMetricTile(
+              'Next', '${_distanceToNextWaypoint.toStringAsFixed(1)} m'),
+          Container(width: 1, height: 32, color: Colors.grey.shade300),
+          _mobileMetricTile(
+              'Remaining', '${_remainingMeters.toStringAsFixed(0)} m'),
+          Container(width: 1, height: 32, color: Colors.grey.shade300),
+          _mobileMetricTile('ETA', etaLabel),
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileMetricTile(String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(value,
+            style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.bold)),
+        Text(label,
+            style:
+                const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildMobileControls() {
+    final isRunning = _state == _SimState.simulating;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          // Play / Pause — 44×44 touch target (iOS HIG)
+          IconButton(
+            onPressed: _canToggle ? _toggleSimulation : null,
+            icon: Icon(
+              isRunning ? Icons.pause : Icons.play_arrow,
+              color: _canToggle
+                  ? (isRunning ? Colors.orange : Colors.green)
+                  : Colors.grey,
+            ),
+            iconSize: 28,
+            tooltip: isRunning ? 'Pause' : 'Play',
+          ),
+          // Reset
+          IconButton(
+            onPressed: _resetSimulation,
+            icon: const Icon(Icons.refresh, color: Colors.blue),
+            iconSize: 28,
+            tooltip: 'Reset',
+          ),
+          const SizedBox(width: 4),
+          // Speed slider — takes remaining width
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Speed: ${_simSpeed.toStringAsFixed(1)}x',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Slider(
+                  value: _simSpeed,
+                  min: 0.1,
+                  max: 3.0,
+                  divisions: 29,
+                  onChanged: _onSpeedChanged,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Mobile direction helpers ───────────────────────────────────────────────
+
+  Color _mobileDirectionColor(TurnDirection? d) {
+    switch (d) {
+      case TurnDirection.left:
+        return Colors.orange;
+      case TurnDirection.right:
+        return Colors.purple;
+      case TurnDirection.straight:
+        return Colors.blue;
+      case TurnDirection.arrived:
+        return Colors.green;
+      case null:
+        return Colors.grey;
+    }
+  }
+
+  IconData _mobileDirectionIcon(TurnDirection? d) {
+    switch (d) {
+      case TurnDirection.left:
+        return Icons.turn_left;
+      case TurnDirection.right:
+        return Icons.turn_right;
+      case TurnDirection.straight:
+        return Icons.arrow_upward;
+      case TurnDirection.arrived:
+        return Icons.check_circle;
+      case null:
+        return Icons.hourglass_empty;
+    }
+  }
+
+  String _mobileDirectionLabel(AppLocalizations l10n, TurnDirection d) {
+    switch (d) {
+      case TurnDirection.left:
+        return l10n.instruction_turn_left;
+      case TurnDirection.right:
+        return l10n.instruction_turn_right;
+      case TurnDirection.straight:
+        return l10n.instruction_go_straight;
+      case TurnDirection.arrived:
+        return l10n.instruction_arrived;
+    }
   }
 
   Widget _buildLegend() {

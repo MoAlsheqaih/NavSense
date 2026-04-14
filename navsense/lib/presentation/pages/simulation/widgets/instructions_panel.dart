@@ -56,6 +56,8 @@ class InstructionsPanel extends StatelessWidget {
           Text(
             l10n.navigationHeading,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
           ),
           const SizedBox(height: 24),
           _buildInstructionCard(l10n),

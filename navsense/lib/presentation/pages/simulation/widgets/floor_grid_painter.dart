@@ -238,7 +238,7 @@ class FloorGridPainter extends CustomPainter {
           text: name,
           style: TextStyle(
             color: const Color(0xFF263238),
-            fontSize: scale * 0.8,
+            fontSize: (scale * 0.8).clamp(1.0, 24.0),
             fontWeight: FontWeight.w600,
           ),
         ),
