@@ -19,6 +19,10 @@ import '../../services/logging/session_logging_service.dart';
 import '../../services/logging/session_logging_service_impl.dart';
 import '../../services/routing/mock_route_service.dart';
 import '../../services/routing/route_service.dart';
+import '../../services/uwb/uwb_service.dart';
+import '../../services/uwb/mock_uwb_service.dart';
+import '../../services/uwb/real_uwb_service.dart';
+import '../../services/positioning_service.dart';
 
 final sl = GetIt.instance;
 
@@ -26,12 +30,12 @@ final sl = GetIt.instance;
 /// Only this file imports concrete implementations — all other code
 /// depends on abstract interfaces.
 Future<void> setupServiceLocator() async {
-  // ── Datasources ──────────────────────────────────────────────────────────
+  // Datasources
   sl.registerLazySingleton<LocalSessionDatasource>(
       () => LocalSessionDatasource());
   sl.registerLazySingleton<FloorRouteDatasource>(() => FloorRouteDatasource());
 
-  // ── Repositories ─────────────────────────────────────────────────────────
+  // Repositories
   sl.registerLazySingleton<RouteRepository>(
     () => RouteRepositoryImpl(sl<FloorRouteDatasource>()),
   );
@@ -39,18 +43,28 @@ Future<void> setupServiceLocator() async {
     () => SessionRepositoryImpl(sl<LocalSessionDatasource>()),
   );
 
-  // ── Use Cases ────────────────────────────────────────────────────────────
-  sl.registerLazySingleton(
-      () => ComputeRouteUseCase(sl<RouteRepository>()));
-  sl.registerLazySingleton(
-      () => LogEventUseCase(sl<SessionRepository>()));
+  // Use Cases
+  sl.registerLazySingleton(() => ComputeRouteUseCase(sl<RouteRepository>()));
+  sl.registerLazySingleton(() => LogEventUseCase(sl<SessionRepository>()));
   sl.registerLazySingleton(
       () => StartNavigationUseCase(sl<SessionRepository>()));
 
-  // ── Services ─────────────────────────────────────────────────────────────
+  // Services
   sl.registerLazySingleton<BleService>(
     () => kIsWeb ? MockBleService() : RealBleService(),
   );
+
+  // UWB Service - uses mock on web, real on mobile
+  sl.registerLazySingleton<UwbService>(
+    () => kIsWeb ? MockUwbService() : RealUwbService(),
+  );
+
+  // Positioning Service - fuses UWB + BLE data
+  sl.registerLazySingleton<PositioningService>(
+    () => PositioningService(
+        uwbService: sl<UwbService>(), bleService: sl<BleService>()),
+  );
+
   sl.registerLazySingleton<HapticService>(() => HapticServiceImpl());
   sl.registerLazySingleton<RouteService>(
     () => MockRouteService(sl<FloorRouteDatasource>()),

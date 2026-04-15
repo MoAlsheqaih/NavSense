@@ -10,10 +10,14 @@ import 'ibeacon_parser.dart';
 /// flutter_beacon uses CLBeaconRegion which is the correct iOS API
 /// for iBeacon detection — CoreBluetooth strips iBeacon data on iOS.
 class RealBleService implements BleService {
+  static const double _nearThreshold = 3.0;
+  static const double _arrivedThreshold = 1.0;
+
   bool _connected = false;
   int _lastRssi = 0;
   double? _lastDistance;
   String _signalStrength = 'FAR';
+  ArrivalState _arrivalState = ArrivalState.far;
   final Set<String> _connectedBeaconIds = {};
   final Map<String, BeaconReading> _lastBeaconReadings = {};
 
@@ -21,6 +25,7 @@ class RealBleService implements BleService {
   final _distanceController = StreamController<double>.broadcast();
   final _beaconReadingsController =
       StreamController<Map<String, BeaconReading>>.broadcast();
+  final _arrivalStateController = StreamController<ArrivalState>.broadcast();
 
   @override
   bool get isConnected => _connected;
@@ -47,6 +52,12 @@ class RealBleService implements BleService {
 
   @override
   String get signalStrength => _signalStrength;
+
+  @override
+  ArrivalState get arrivalState => _arrivalState;
+
+  @override
+  Stream<ArrivalState> get arrivalStateStream => _arrivalStateController.stream;
 
   /// Not used for iBeacons — ranging starts in connect().
   @override
@@ -126,6 +137,7 @@ class RealBleService implements BleService {
             readings.values.map((r) => r.rssi).reduce((a, b) => a > b ? a : b);
         _signalStrength = _proximityLabelFromDistance(_lastDistance!);
         _distanceController.add(_lastDistance!);
+        _updateArrivalState();
       }
     });
   }
@@ -148,6 +160,8 @@ class RealBleService implements BleService {
   void dispose() {
     disconnect();
     _distanceController.close();
+    _beaconReadingsController.close();
+    _arrivalStateController.close();
   }
 
   /// Maps CoreLocation proximity to the same labels used by IBeaconParser.
@@ -170,5 +184,24 @@ class RealBleService implements BleService {
     if (distance <= 3.0) return 'CLOSE';
     if (distance <= 10.0) return 'MEDIUM';
     return 'FAR';
+  }
+
+  void _updateArrivalState() {
+    if (_lastDistance == null) return;
+
+    final newState = _calculateArrivalState();
+    if (newState != _arrivalState) {
+      _arrivalState = newState;
+      _arrivalStateController.add(_arrivalState);
+    }
+  }
+
+  ArrivalState _calculateArrivalState() {
+    if (_lastDistance! <= _arrivedThreshold) {
+      return ArrivalState.arrived;
+    } else if (_lastDistance! <= _nearThreshold) {
+      return ArrivalState.near;
+    }
+    return ArrivalState.far;
   }
 }

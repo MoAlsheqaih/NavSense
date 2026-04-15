@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'package:navsense/services/uwb/uwb_anchor.dart';
 
 class FloorGridPainter extends CustomPainter {
   final double floorWidth;
@@ -7,6 +8,7 @@ class FloorGridPainter extends CustomPainter {
   final double cellSize;
   final List<Offset> corridorCells;
   final List<Offset> entranceCells;
+  final List<UwbAnchor> uwbAnchors;
 
   FloorGridPainter({
     this.floorWidth = 29.0,
@@ -14,6 +16,7 @@ class FloorGridPainter extends CustomPainter {
     this.cellSize = 10.0,
     this.corridorCells = const [],
     this.entranceCells = const [],
+    this.uwbAnchors = const [],
   });
 
   // Room definitions with boundaries and names
@@ -100,6 +103,52 @@ class FloorGridPainter extends CustomPainter {
     _drawEntrances(canvas, scale, offsetX, offsetY);
     _drawRoomLabels(canvas, scale, offsetX, offsetY);
     _drawGrid(canvas, scale, offsetX, offsetY);
+    _drawUwbAnchors(canvas, scale, offsetX, offsetY);
+  }
+
+  void _drawUwbAnchors(
+      Canvas canvas, double scale, double offsetX, double offsetY) {
+    for (final anchor in uwbAnchors) {
+      final center = Offset(
+        offsetX + anchor.x * scale,
+        offsetY + (floorHeight - anchor.y) * scale,
+      );
+
+      // Draw anchor circle
+      final circlePaint = Paint()
+        ..color = const Color(0xFF2196F3)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, scale * 0.4, circlePaint);
+
+      // Draw anchor border
+      final borderPaint = Paint()
+        ..color = const Color(0xFF1565C0)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawCircle(center, scale * 0.4, borderPaint);
+
+      // Draw anchor label
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: anchor.id.replaceAll('anchor_', 'A'),
+          style: TextStyle(
+            color: const Color(0xFF1565C0),
+            fontSize: (scale * 0.5).clamp(1.0, 14.0),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(
+          center.dx - textPainter.width / 2,
+          center.dy - scale * 0.8,
+        ),
+      );
+    }
   }
 
   void _drawBackground(Canvas canvas, Size size) {
@@ -283,7 +332,8 @@ class FloorGridPainter extends CustomPainter {
     return oldDelegate.floorWidth != floorWidth ||
         oldDelegate.floorHeight != floorHeight ||
         oldDelegate.corridorCells != corridorCells ||
-        oldDelegate.entranceCells != entranceCells;
+        oldDelegate.entranceCells != entranceCells ||
+        oldDelegate.uwbAnchors != uwbAnchors;
   }
 
   Offset worldToScreen(double x, double y, Size size) {

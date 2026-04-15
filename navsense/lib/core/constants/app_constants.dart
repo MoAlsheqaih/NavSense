@@ -20,4 +20,11 @@ class AppConstants {
 
   /// Mock BLE device name.
   static const String mockDeviceName = 'NavSense-Wearable';
+
+  /// UWB Configuration (ESP32 UWB Pro)
+  static const int uwbListenPort = 8080;
+  static const double floorWidthMeters = 25.0;
+  static const double floorHeightMeters = 14.5;
+  static const double uwbUpdateRateHz = 10.0;
+  static const double uwbExpectedAccuracy = 0.15;
 }

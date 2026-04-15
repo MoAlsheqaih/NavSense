@@ -47,7 +47,7 @@ void main() {
     test('scanDevices yields at least one device', () async {
       final devices = await ble.scanDevices().toList();
       expect(devices, isNotEmpty);
-      expect(devices.first.name, contains('NavSense'));
+      expect(devices.first.name, contains('Beacon'));
     });
 
     test('BleDevice.signalQuality is clamped to 0.0–1.0', () async {

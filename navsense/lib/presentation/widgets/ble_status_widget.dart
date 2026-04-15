@@ -119,7 +119,7 @@ class BeaconSelectionCard extends StatelessWidget {
                 ),
                 if (isSelected) ...[
                   const SizedBox(width: 8),
-                  Icon(Icons.check, color: AppTheme.successColor),
+                  const Icon(Icons.check, color: AppTheme.successColor),
                 ],
               ],
             ),
