@@ -23,7 +23,7 @@ import '../../services/routing/mock_route_service.dart';
 import '../../services/routing/route_service.dart';
 import '../../services/uwb/uwb_service.dart';
 import '../../services/uwb/mock_uwb_service.dart';
-import '../../services/uwb/real_uwb_service.dart';
+import '../../services/uwb/ble_uwb_service.dart';
 import '../../services/positioning_service.dart';
 
 final sl = GetIt.instance;
@@ -56,9 +56,9 @@ Future<void> setupServiceLocator() async {
     () => kIsWeb ? MockBleService() : RealBleService(),
   );
 
-  // UWB Service - uses mock on web, real on mobile
+  // UWB Service - uses mock on web, BLE direct on mobile
   sl.registerLazySingleton<UwbService>(
-    () => kIsWeb ? MockUwbService() : RealUwbService(),
+    () => kIsWeb ? MockUwbService() : BleUwbService(),
   );
 
   // Positioning Service - fuses UWB + BLE data

@@ -10,6 +10,8 @@ import '../../../domain/entities/waypoint.dart';
 import '../../../domain/usecases/compute_route_usecase.dart';
 import '../../../services/routing/route_service.dart';
 import '../beacon_scanner/beacon_scanner_page.dart';
+import '../uwb_map/uwb_map_page.dart';
+import '../../widgets/uwb_status_widget.dart';
 import 'home_viewmodel.dart';
 
 class HomePage extends StatelessWidget {
@@ -60,6 +62,14 @@ class _HomeViewState extends State<_HomeView> {
               MaterialPageRoute(builder: (_) => const BeaconScannerPage()),
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.my_location),
+            tooltip: 'UWB Live Map',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const UwbMapPage()),
+            ),
+          ),
         ],
       ),
       body: vm.state == HomeState.loading && vm.destinations.isEmpty
@@ -85,7 +95,9 @@ class _HomeViewState extends State<_HomeView> {
             label: 'Dijkstra Routing  •  9 Real Rooms',
             color: AppTheme.primaryColor,
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
+          const UwbStatusWidget(),
+          const SizedBox(height: 10),
 
           // ── Start room ────────────────────────────────────────────────
           const _SectionLabel(

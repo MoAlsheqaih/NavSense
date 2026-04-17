@@ -104,7 +104,7 @@ class PositioningService {
     final distance = bleService.lastDistanceMeters;
     if (distance == null) return null;
 
-    return Waypoint(
+    return const Waypoint(
       id: 'ble_position',
       name: 'BLE Position',
       floor: 0,

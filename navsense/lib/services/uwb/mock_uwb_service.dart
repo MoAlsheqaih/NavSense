@@ -15,7 +15,7 @@ class MockUwbService implements UwbService {
   final Random _random = Random();
   double _simulatedX = 25.0;
   double _simulatedY = 14.5;
-  String _tagId = 'uwb_tag_001';
+  final String _tagId = 'uwb_tag_001';
 
   late List<UwbAnchor> _anchors;
 
