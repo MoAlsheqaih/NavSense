@@ -55,7 +55,7 @@ class RealUwbService implements UwbService {
     _connectionStreamController.add(UwbConnectionState.connecting);
 
     try {
-      await _startUdpListener(AppConstants.uwbListenPort);
+      await _startUdpListener(AppConstants.uwbGatewayPort);
       _isListening = true;
       _connectionStreamController.add(UwbConnectionState.connected);
     } catch (e) {
@@ -83,6 +83,7 @@ class RealUwbService implements UwbService {
   void _processUwbData(List<int> data) {
     try {
       final json = jsonDecode(utf8.decode(data)) as Map<String, dynamic>;
+      print('Received UWB data: $json');
       _tagId = json['tagId'] as String? ?? _tagId;
       final x = (json['x'] as num?)?.toDouble() ?? 0.0;
       final y = (json['y'] as num?)?.toDouble() ?? 0.0;

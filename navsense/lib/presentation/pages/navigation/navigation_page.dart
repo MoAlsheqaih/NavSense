@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../domain/entities/route_plan.dart';
 import '../../../services/ble/ble_service.dart';
 import '../../../services/haptic/haptic_service.dart';
+import '../../../services/haptic/wearable_haptic_service.dart';
 import '../../../services/logging/session_logging_service.dart';
 import '../../widgets/direction_card.dart';
 import 'navigation_viewmodel.dart';
@@ -36,6 +37,7 @@ class NavigationPage extends StatelessWidget {
         routePlan: plan,
         bleService: GetIt.I<BleService>(),
         hapticService: GetIt.I<HapticService>(),
+        wearableHapticService: GetIt.I<WearableHapticService>(),
         loggingService: GetIt.I<SessionLoggingService>(),
         useSimulation: useSimulation,
       )..initialize(),
@@ -93,15 +95,13 @@ class _NavigationViewState extends State<_NavigationView> {
                     Text(
                       l10n.navigationStepOf(
                           vm.currentStepIndex + 1, vm.totalSteps),
-                      style:
-                          const TextStyle(color: AppTheme.darkOnMuted),
+                      style: const TextStyle(color: AppTheme.darkOnMuted),
                     ),
                     const SizedBox(height: 10),
 
                     // ── Direction card ─────────────────────────────────
                     DirectionCard(
-                        direction: step.direction,
-                        instruction: instruction),
+                        direction: step.direction, instruction: instruction),
                     const SizedBox(height: 16),
 
                     // ── Beacon panel ───────────────────────────────────
@@ -135,12 +135,18 @@ class _NavigationViewState extends State<_NavigationView> {
 
   String _localizeInstruction(String key, AppLocalizations l10n) {
     switch (key) {
-      case 'instruction_go_straight':  return l10n.instruction_go_straight;
-      case 'instruction_turn_left':    return l10n.instruction_turn_left;
-      case 'instruction_turn_right':   return l10n.instruction_turn_right;
-      case 'instruction_arrived':      return l10n.instruction_arrived;
-      case 'instruction_off_route':    return l10n.instruction_off_route;
-      default: return key;
+      case 'instruction_go_straight':
+        return l10n.instruction_go_straight;
+      case 'instruction_turn_left':
+        return l10n.instruction_turn_left;
+      case 'instruction_turn_right':
+        return l10n.instruction_turn_right;
+      case 'instruction_arrived':
+        return l10n.instruction_arrived;
+      case 'instruction_off_route':
+        return l10n.instruction_off_route;
+      default:
+        return key;
     }
   }
 
@@ -152,8 +158,7 @@ class _NavigationViewState extends State<_NavigationView> {
         title: const Icon(Icons.flag, color: Colors.green, size: 48),
         content: Text(l10n.instruction_arrived,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold)),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
         actions: [
           ElevatedButton(
             onPressed: () {
@@ -193,8 +198,7 @@ class _BeaconPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.darkCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: color.withValues(alpha: 0.4), width: 1.2),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,9 +217,7 @@ class _BeaconPanel extends StatelessWidget {
               Text(
                 'BLE Beacon  •  Holy-IOT',
                 style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13),
+                    color: color, fontWeight: FontWeight.bold, fontSize: 13),
               ),
               const Spacer(),
               _StrengthBadge(strength: strength, isConnected: isConnected),
@@ -263,10 +265,14 @@ class _BeaconPanel extends StatelessWidget {
 
   Color _strengthColor(String s) {
     switch (s) {
-      case 'VERY CLOSE': return Colors.green;
-      case 'CLOSE':      return Colors.lightGreen;
-      case 'MEDIUM':     return Colors.orange;
-      default:           return Colors.red;
+      case 'VERY CLOSE':
+        return Colors.green;
+      case 'CLOSE':
+        return Colors.lightGreen;
+      case 'MEDIUM':
+        return Colors.orange;
+      default:
+        return Colors.red;
     }
   }
 }
@@ -275,8 +281,7 @@ class _StrengthBadge extends StatelessWidget {
   final String strength;
   final bool isConnected;
 
-  const _StrengthBadge(
-      {required this.strength, required this.isConnected});
+  const _StrengthBadge({required this.strength, required this.isConnected});
 
   @override
   Widget build(BuildContext context) {
@@ -290,18 +295,22 @@ class _StrengthBadge extends StatelessWidget {
       ),
       child: Text(
         isConnected ? strength : 'SEARCHING',
-        style: TextStyle(
-            color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }
 
   Color _color() {
     switch (strength) {
-      case 'VERY CLOSE': return Colors.green;
-      case 'CLOSE':      return Colors.lightGreen;
-      case 'MEDIUM':     return Colors.orange;
-      default:           return Colors.red;
+      case 'VERY CLOSE':
+        return Colors.green;
+      case 'CLOSE':
+        return Colors.lightGreen;
+      case 'MEDIUM':
+        return Colors.orange;
+      default:
+        return Colors.red;
     }
   }
 }
@@ -327,12 +336,9 @@ class _BeaconMetric extends StatelessWidget {
         const SizedBox(height: 4),
         Text(value,
             style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 14)),
+                color: color, fontWeight: FontWeight.bold, fontSize: 14)),
         Text(label,
-            style: const TextStyle(
-                color: AppTheme.darkOnMuted, fontSize: 11)),
+            style: const TextStyle(color: AppTheme.darkOnMuted, fontSize: 11)),
       ],
     );
   }
@@ -366,8 +372,7 @@ class _RouteStepsList extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.route, size: 15,
-                  color: AppTheme.primaryColor),
+              const Icon(Icons.route, size: 15, color: AppTheme.primaryColor),
               const SizedBox(width: 6),
               Text(
                 'Dijkstra Route  •  ${steps.length} steps',
@@ -451,11 +456,9 @@ class _StepRow extends StatelessWidget {
               _localizeInstruction(step.instruction, l10n),
               style: TextStyle(
                 color: color,
-                fontWeight:
-                    isCurrent ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
                 fontSize: 13,
-                decoration:
-                    isDone ? TextDecoration.lineThrough : null,
+                decoration: isDone ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
@@ -471,20 +474,29 @@ class _StepRow extends StatelessWidget {
 
   IconData _stepIcon(TurnDirection d) {
     switch (d) {
-      case TurnDirection.left:     return Icons.turn_left;
-      case TurnDirection.right:    return Icons.turn_right;
-      case TurnDirection.straight: return Icons.straight;
-      case TurnDirection.arrived:  return Icons.flag;
+      case TurnDirection.left:
+        return Icons.turn_left;
+      case TurnDirection.right:
+        return Icons.turn_right;
+      case TurnDirection.straight:
+        return Icons.straight;
+      case TurnDirection.arrived:
+        return Icons.flag;
     }
   }
 
   String _localizeInstruction(String key, AppLocalizations l10n) {
     switch (key) {
-      case 'instruction_go_straight': return l10n.instruction_go_straight;
-      case 'instruction_turn_left':   return l10n.instruction_turn_left;
-      case 'instruction_turn_right':  return l10n.instruction_turn_right;
-      case 'instruction_arrived':     return l10n.instruction_arrived;
-      default: return key;
+      case 'instruction_go_straight':
+        return l10n.instruction_go_straight;
+      case 'instruction_turn_left':
+        return l10n.instruction_turn_left;
+      case 'instruction_turn_right':
+        return l10n.instruction_turn_right;
+      case 'instruction_arrived':
+        return l10n.instruction_arrived;
+      default:
+        return key;
     }
   }
 }

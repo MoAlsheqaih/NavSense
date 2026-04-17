@@ -22,7 +22,10 @@ class AppConstants {
   static const String mockDeviceName = 'NavSense-Wearable';
 
   /// UWB Configuration (ESP32 UWB Pro)
-  static const int uwbListenPort = 8080;
+  static const int uwbListenPort = 8080; // Original ESP32 UDP port
+  static const int uwbGatewayPort = 8081; // Python gateway UDP port
+  static const int hapticGatewayPort = 8082; // Commands to gateway
+
   static const double floorWidthMeters = 25.0;
   static const double floorHeightMeters = 14.5;
   static const double uwbUpdateRateHz = 10.0;

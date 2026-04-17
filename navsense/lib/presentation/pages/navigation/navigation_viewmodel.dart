@@ -8,6 +8,7 @@ import '../../../domain/entities/session_event.dart';
 import '../../../domain/entities/waypoint.dart';
 import '../../../services/ble/ble_service.dart';
 import '../../../services/haptic/haptic_service.dart';
+import '../../../services/haptic/wearable_haptic_service.dart';
 import '../../../services/logging/session_logging_service.dart';
 import '../../../services/simulation/simulation_config.dart';
 import '../../../services/simulation/simulated_position_provider.dart';
@@ -18,6 +19,7 @@ class NavigationViewModel extends ChangeNotifier {
   final RoutePlan routePlan;
   final BleService _bleService;
   final HapticService _hapticService;
+  final WearableHapticService _wearableHapticService;
   final SessionLoggingService _loggingService;
   final bool useSimulation;
   SimulatedPositionProvider? _positionProvider;
@@ -26,10 +28,12 @@ class NavigationViewModel extends ChangeNotifier {
     required this.routePlan,
     required BleService bleService,
     required HapticService hapticService,
+    required WearableHapticService wearableHapticService,
     required SessionLoggingService loggingService,
     this.useSimulation = false,
   })  : _bleService = bleService,
         _hapticService = hapticService,
+        _wearableHapticService = wearableHapticService,
         _loggingService = loggingService;
 
   String? _sessionId;
@@ -189,10 +193,12 @@ class NavigationViewModel extends ChangeNotifier {
       case TurnDirection.left:
         _lastHapticLabel = 'hapticLeft';
         await _hapticService.triggerLeft();
+        await _wearableHapticService.triggerDirection(TurnDirection.left);
         break;
       case TurnDirection.right:
         _lastHapticLabel = 'hapticRight';
         await _hapticService.triggerRight();
+        await _wearableHapticService.triggerDirection(TurnDirection.right);
         break;
       case TurnDirection.arrived:
         _lastHapticLabel = 'hapticArrival';
@@ -201,6 +207,7 @@ class NavigationViewModel extends ChangeNotifier {
       case TurnDirection.straight:
         _lastHapticLabel = null;
         await _hapticService.triggerStraight();
+        await _wearableHapticService.triggerDirection(TurnDirection.straight);
         break;
     }
     notifyListeners();
