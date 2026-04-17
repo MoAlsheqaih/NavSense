@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_compass/flutter_compass.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../core/theme/app_theme.dart';
@@ -18,11 +20,19 @@ class UwbMapPage extends StatefulWidget {
 class _UwbMapPageState extends State<UwbMapPage> {
   late final UwbService _uwbService;
   UwbPosition? _position;
+  UwbPosition? _prevPosition;
   UwbConnectionState _connState = UwbConnectionState.disconnected;
+  double? _compassDeg;    // raw compass heading
+  double? _movementDeg;   // direction from UWB movement vector (primary)
+  double? _smoothedMovementDeg; // EMA-smoothed movement direction
   String? _rawData;
   StreamSubscription? _posSub;
   StreamSubscription? _connSub;
+  StreamSubscription<CompassEvent>? _compassSub;
   Timer? _rawTimer;
+
+  static const double _minMoveDist = 0.15; // metres — ignore jitter below this
+  static const double _emaAlpha = 0.4;
 
   @override
   void initState() {
@@ -34,13 +44,45 @@ class _UwbMapPageState extends State<UwbMapPage> {
     _position = _uwbService.lastPosition;
 
     _posSub = _uwbService.positionStream.listen((pos) {
-      if (mounted) setState(() => _position = pos);
+      if (!mounted) return;
+      setState(() {
+        // Compute movement vector from previous position
+        if (_prevPosition != null) {
+          final dx = pos.x - _prevPosition!.x;
+          final dy = pos.y - _prevPosition!.y;
+          final dist = sqrt(dx * dx + dy * dy);
+          if (dist >= _minMoveDist) {
+            // atan2(dx,dy): dy=North(+Y), dx=East(+X) → degrees clockwise from North
+            final rawDeg = atan2(dx, dy) * 180 / pi;
+            final normalized = (rawDeg + 360) % 360;
+            if (_smoothedMovementDeg == null) {
+              _smoothedMovementDeg = normalized;
+            } else {
+              // EMA on angle (handle wraparound)
+              double diff = normalized - _smoothedMovementDeg!;
+              if (diff > 180) diff -= 360;
+              if (diff < -180) diff += 360;
+              _smoothedMovementDeg = (_smoothedMovementDeg! + _emaAlpha * diff + 360) % 360;
+            }
+            _movementDeg = _smoothedMovementDeg;
+          }
+        }
+        _prevPosition = _position;
+        _position = pos;
+      });
     });
+
     _connSub = _uwbService.connectionStateStream.stream.listen((s) {
       if (mounted) setState(() => _connState = s);
     });
 
-    // Poll raw BLE data for debugging
+    // Compass as fallback
+    _compassSub = FlutterCompass.events?.listen((event) {
+      if (mounted && event.heading != null) {
+        setState(() => _compassDeg = event.heading);
+      }
+    });
+
     _rawTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (!mounted) return;
       final raw = (_uwbService is BleUwbService)
@@ -50,11 +92,15 @@ class _UwbMapPageState extends State<UwbMapPage> {
     });
   }
 
+  // Active heading: prefer movement vector, fall back to compass
+  double? get _activeHeading => _movementDeg ?? _compassDeg;
+
   @override
   void dispose() {
     _rawTimer?.cancel();
     _posSub?.cancel();
     _connSub?.cancel();
+    _compassSub?.cancel();
     super.dispose();
   }
 
@@ -65,6 +111,11 @@ class _UwbMapPageState extends State<UwbMapPage> {
       appBar: AppBar(
         title: const Text('UWB Live Map'),
         actions: [
+          if (_activeHeading != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _HeadingBadge(heading: _activeHeading!),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
             child: _ConnBadge(state: _connState),
@@ -79,7 +130,32 @@ class _UwbMapPageState extends State<UwbMapPage> {
               child: _UwbMapCanvas(
                 anchors: _uwbService.anchors,
                 tagPosition: _position,
+                headingDeg: _activeHeading,
               ),
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                  color: _activeHeading != null
+                      ? Colors.orange.withValues(alpha: 0.5)
+                      : Colors.grey.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              _movementDeg != null
+                  ? 'Direction (movement): ${_movementDeg!.toStringAsFixed(1)}°'
+                  : _compassDeg != null
+                      ? 'Direction (compass): ${_compassDeg!.toStringAsFixed(1)}°'
+                      : 'Direction: move to detect...',
+              style: TextStyle(
+                  color: _activeHeading != null ? Colors.orange : Colors.grey,
+                  fontSize: 11,
+                  fontFamily: 'monospace'),
             ),
           ),
           if (_rawData != null)
@@ -94,12 +170,17 @@ class _UwbMapPageState extends State<UwbMapPage> {
               ),
               child: Text(
                 'RAW: $_rawData',
-                style: const TextStyle(color: Colors.green, fontSize: 10, fontFamily: 'monospace'),
+                style: const TextStyle(
+                    color: Colors.green, fontSize: 10, fontFamily: 'monospace'),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-          _InfoPanel(position: _position, anchors: _uwbService.anchors),
+          _InfoPanel(
+            position: _position,
+            anchors: _uwbService.anchors,
+            headingDeg: _activeHeading,
+          ),
         ],
       ),
     );
@@ -111,8 +192,13 @@ class _UwbMapPageState extends State<UwbMapPage> {
 class _UwbMapCanvas extends StatelessWidget {
   final List<UwbAnchor> anchors;
   final UwbPosition? tagPosition;
+  final double? headingDeg;
 
-  const _UwbMapCanvas({required this.anchors, required this.tagPosition});
+  const _UwbMapCanvas({
+    required this.anchors,
+    required this.tagPosition,
+    required this.headingDeg,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +211,11 @@ class _UwbMapCanvas extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: CustomPaint(
-          painter: _MapPainter(anchors: anchors, tagPosition: tagPosition),
+          painter: _MapPainter(
+            anchors: anchors,
+            tagPosition: tagPosition,
+            headingDeg: headingDeg,
+          ),
           child: const SizedBox.expand(),
         ),
       ),
@@ -136,8 +226,13 @@ class _UwbMapCanvas extends StatelessWidget {
 class _MapPainter extends CustomPainter {
   final List<UwbAnchor> anchors;
   final UwbPosition? tagPosition;
+  final double? headingDeg;
 
-  _MapPainter({required this.anchors, required this.tagPosition});
+  _MapPainter({
+    required this.anchors,
+    required this.tagPosition,
+    required this.headingDeg,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -147,7 +242,6 @@ class _MapPainter extends CustomPainter {
     final drawW = size.width - padding * 2;
     final drawH = size.height - padding * 2;
 
-    // Compute bounding box of anchors
     final xs = anchors.map((a) => a.x).toList();
     final ys = anchors.map((a) => a.y).toList();
     final minX = xs.reduce((a, b) => a < b ? a : b);
@@ -161,38 +255,36 @@ class _MapPainter extends CustomPainter {
     final scaleY = drawH / spaceH;
     final scale = scaleX < scaleY ? scaleX : scaleY;
 
-    // Centre the drawing
     final offsetX = padding + (drawW - spaceW * scale) / 2;
     final offsetY = padding + (drawH - spaceH * scale) / 2;
 
     Offset toCanvas(double x, double y) => Offset(
           offsetX + (x - minX) * scale,
-          offsetY + (maxY - y) * scale, // flip Y so y=0 is at bottom
+          offsetY + (maxY - y) * scale,
         );
 
-    // Grid lines
+    // Grid
     final gridPaint = Paint()
       ..color = AppTheme.darkBorder.withValues(alpha: 0.5)
       ..strokeWidth = 0.5;
     for (var gx = 0.0; gx <= spaceW; gx += 1.0) {
-      final p = toCanvas(minX + gx, minY);
-      final p2 = toCanvas(minX + gx, maxY);
-      canvas.drawLine(p, p2, gridPaint);
+      canvas.drawLine(
+          toCanvas(minX + gx, minY), toCanvas(minX + gx, maxY), gridPaint);
     }
     for (var gy = 0.0; gy <= spaceH; gy += 1.0) {
-      final p = toCanvas(minX, minY + gy);
-      final p2 = toCanvas(maxX, minY + gy);
-      canvas.drawLine(p, p2, gridPaint);
+      canvas.drawLine(
+          toCanvas(minX, minY + gy), toCanvas(maxX, minY + gy), gridPaint);
     }
 
-    // Anchor distance rings (subtle dashed look via thin stroke)
+    // North indicator (top-right corner)
+    _drawNorthIndicator(canvas, size);
+
+    // Anchor distance rings
     for (final anchor in anchors) {
       if (anchor.distanceMeters > 0) {
-        final center = toCanvas(anchor.x, anchor.y);
-        final radius = anchor.distanceMeters * scale;
         canvas.drawCircle(
-          center,
-          radius,
+          toCanvas(anchor.x, anchor.y),
+          anchor.distanceMeters * scale,
           Paint()
             ..color = AppTheme.primaryColor.withValues(alpha: 0.18)
             ..style = PaintingStyle.stroke
@@ -204,16 +296,15 @@ class _MapPainter extends CustomPainter {
     // Anchor markers
     for (final anchor in anchors) {
       final pos = toCanvas(anchor.x, anchor.y);
-
-      canvas.drawCircle(pos, 10,
-          Paint()..color = AppTheme.primaryColor.withValues(alpha: 0.9));
       canvas.drawCircle(
-          pos, 10,
+          pos, 10, Paint()..color = AppTheme.primaryColor.withValues(alpha: 0.9));
+      canvas.drawCircle(
+          pos,
+          10,
           Paint()
             ..color = Colors.white.withValues(alpha: 0.25)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5);
-
       _drawLabel(canvas, anchor.name, Colors.white, 11, pos, 13);
       _drawLabel(
         canvas,
@@ -225,21 +316,29 @@ class _MapPainter extends CustomPainter {
       );
     }
 
-    // Tag marker
+    // Tag marker + direction arrow
     if (tagPosition != null) {
       final tagPos = toCanvas(tagPosition!.x, tagPosition!.y);
 
-      // Outer glow ring
-      canvas.drawCircle(tagPos, 14,
+      // Draw direction arrow if heading is available
+      if (headingDeg != null) {
+        _drawDirectionArrow(canvas, tagPos, headingDeg!);
+      }
+
+      // Glow ring
+      canvas.drawCircle(
+          tagPos,
+          14,
           Paint()
             ..color = AppTheme.successColor.withValues(alpha: 0.25)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2);
 
       // Solid dot
-      canvas.drawCircle(tagPos, 10,
-          Paint()..color = AppTheme.successColor);
-      canvas.drawCircle(tagPos, 10,
+      canvas.drawCircle(tagPos, 10, Paint()..color = AppTheme.successColor);
+      canvas.drawCircle(
+          tagPos,
+          10,
           Paint()
             ..color = Colors.white.withValues(alpha: 0.35)
             ..style = PaintingStyle.stroke
@@ -257,8 +356,68 @@ class _MapPainter extends CustomPainter {
     }
   }
 
+  /// Draws a direction arrow from [origin] pointing in [headingDeg] degrees.
+  /// 0° = North (+Y world = up on canvas), 90° = East (+X).
+  void _drawDirectionArrow(Canvas canvas, Offset origin, double headingDeg) {
+    const arrowLength = 40.0;
+    const arrowHeadSize = 10.0;
+
+    final rad = headingDeg * pi / 180.0;
+    // Canvas Y is flipped: North (0°) points up (-Y), East (90°) points right (+X)
+    final dx = sin(rad);
+    final dy = -cos(rad);
+
+    final tip = origin + Offset(dx * arrowLength, dy * arrowLength);
+
+    final arrowPaint = Paint()
+      ..color = Colors.orange
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Shaft
+    canvas.drawLine(origin, tip, arrowPaint);
+
+    // Arrowhead — two lines fanning back from the tip
+    final backAngle = atan2(dy, dx);
+    final left = tip +
+        Offset(cos(backAngle + 2.5) * arrowHeadSize,
+            sin(backAngle + 2.5) * arrowHeadSize);
+    final right = tip +
+        Offset(cos(backAngle - 2.5) * arrowHeadSize,
+            sin(backAngle - 2.5) * arrowHeadSize);
+
+    canvas.drawLine(tip, left, arrowPaint);
+    canvas.drawLine(tip, right, arrowPaint);
+  }
+
+  void _drawNorthIndicator(Canvas canvas, Size size) {
+    const x = 30.0;
+    const y = 30.0;
+    const len = 16.0;
+
+    canvas.drawLine(
+      const Offset(x, y + len),
+      const Offset(x, y - len),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..strokeWidth = 1.5,
+    );
+    // Arrowhead
+    canvas.drawLine(const Offset(x, y - len),
+        const Offset(x - 5, y - len + 7),
+        Paint()..color = Colors.white.withValues(alpha: 0.5)..strokeWidth = 1.5);
+    canvas.drawLine(const Offset(x, y - len),
+        const Offset(x + 5, y - len + 7),
+        Paint()..color = Colors.white.withValues(alpha: 0.5)..strokeWidth = 1.5);
+
+    _drawLabel(canvas, 'N', Colors.white.withValues(alpha: 0.6), 10,
+        const Offset(x, y - len - 4), -12);
+  }
+
   void _drawLabel(Canvas canvas, String text, Color color, double fontSize,
-      Offset center, double yOffset, {bool bold = false}) {
+      Offset center, double yOffset,
+      {bool bold = false}) {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
@@ -275,7 +434,9 @@ class _MapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MapPainter old) =>
-      old.tagPosition != tagPosition || old.anchors != anchors;
+      old.tagPosition != tagPosition ||
+      old.anchors != anchors ||
+      old.headingDeg != headingDeg;
 }
 
 // ── Info Panel ────────────────────────────────────────────────────────────────
@@ -283,8 +444,24 @@ class _MapPainter extends CustomPainter {
 class _InfoPanel extends StatelessWidget {
   final UwbPosition? position;
   final List<UwbAnchor> anchors;
+  final double? headingDeg;
 
-  const _InfoPanel({required this.position, required this.anchors});
+  const _InfoPanel({
+    required this.position,
+    required this.anchors,
+    required this.headingDeg,
+  });
+
+  String _headingLabel(double deg) {
+    if (deg < 22.5 || deg >= 337.5) return 'N';
+    if (deg < 67.5) return 'NE';
+    if (deg < 112.5) return 'E';
+    if (deg < 157.5) return 'SE';
+    if (deg < 202.5) return 'S';
+    if (deg < 247.5) return 'SW';
+    if (deg < 292.5) return 'W';
+    return 'NW';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -301,19 +478,32 @@ class _InfoPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.location_on, size: 14, color: AppTheme.successColor),
+              const Icon(Icons.location_on,
+                  size: 14, color: AppTheme.successColor),
               const SizedBox(width: 6),
-              Text(
-                position != null
-                    ? 'Tag:  x = ${position!.x.toStringAsFixed(3)} m    '
-                      'y = ${position!.y.toStringAsFixed(3)} m    '
-                      '±${position!.accuracy.toStringAsFixed(3)} m'
-                    : 'Tag:  waiting for data...',
-                style: const TextStyle(
-                    color: AppTheme.successColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13),
+              Expanded(
+                child: Text(
+                  position != null
+                      ? 'x = ${position!.x.toStringAsFixed(2)} m    '
+                          'y = ${position!.y.toStringAsFixed(2)} m'
+                      : 'Tag: waiting for data...',
+                  style: const TextStyle(
+                      color: AppTheme.successColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13),
+                ),
               ),
+              if (headingDeg != null) ...[
+                const Icon(Icons.navigation, size: 14, color: Colors.orange),
+                const SizedBox(width: 4),
+                Text(
+                  '${headingDeg!.toStringAsFixed(0)}°  ${_headingLabel(headingDeg!)}',
+                  style: const TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -343,6 +533,21 @@ class _InfoPanel extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Heading Badge (AppBar) ────────────────────────────────────────────────────
+
+class _HeadingBadge extends StatelessWidget {
+  final double heading;
+  const _HeadingBadge({required this.heading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: heading * pi / 180,
+      child: const Icon(Icons.navigation, color: Colors.orange, size: 20),
     );
   }
 }
