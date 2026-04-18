@@ -29,10 +29,16 @@ ADDR_A3 = norm_addr("1784")
 # Real measured anchor coordinates in metres - MEASURE AND UPDATE THESE
 # A1 and A2 are on the bottom line, A3 is above them.
 ANCHORS = {
-    ADDR_A1: ("A1", 0.0, 0.0),  # Bottom left
-    ADDR_A2: ("A2", 3.0, 0.0),  # Bottom right
-    ADDR_A3: ("A3", 1.5, 2.6),  # Above center
+    ADDR_A1: ("A1", 0.0, 0.0),  # Bottom left (0, 0)
+    ADDR_A2: ("A2", 5.0, 0.0),  # Bottom right (5, 0)
+    ADDR_A3: ("A3", 5.0, 10.0),  # Top right (5, 10)
 }
+
+# NAVIGATION SETTINGS
+TARGET_POSITION = {"x": 2.5, "y": 5.0}  # Target position in meters (center of room)
+NAVIGATION_THRESHOLD = 0.5  # Stop navigation when within this distance of target
+NAVIGATION_UPDATE_INTERVAL = 0.5  # Seconds between navigation updates
+MAX_SPEED = 0.8  # Maximum movement speed (m/s)
 
 range_offset = 0.0
 
@@ -46,6 +52,11 @@ ble_client_ref = None
 ble_loop_ref   = None
 ble_connected  = False
 current_position = {"x": 0.0, "y": 0.0, "anchors": {}}
+
+# NAVIGATION STATE
+navigation_enabled = False
+last_navigation_time = 0
+current_direction = None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # POSITIONING MATH
@@ -81,6 +92,70 @@ def trilaterate_2d(p1, r1, p2, r2, p3, r3):
     x = (c * e - b * f) / det
     y = (a * f - c * d) / det
     return round(x, 2), round(y, 2)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NAVIGATION LOGIC
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def calculate_direction(current_x, current_y, target_x, target_y):
+    """
+    Calculate the primary direction needed to reach target.
+    Returns: 'F' (forward), 'B' (backward), 'L' (left), 'R' (right), or None if at target
+    """
+    dx = target_x - current_x
+    dy = target_y - current_y
+
+    distance = math.sqrt(dx*dx + dy*dy)
+
+    if distance < NAVIGATION_THRESHOLD:
+        return None  # At target
+
+    # Calculate angle to target (0 = positive X axis, 90 = positive Y axis)
+    angle_rad = math.atan2(dy, dx)
+    angle_deg = math.degrees(angle_rad)
+
+    # Normalize to 0-360
+    if angle_deg < 0:
+        angle_deg += 360
+
+    # Determine primary direction based on angle
+    # Assuming user faces positive Y direction (forward)
+    if 315 <= angle_deg or angle_deg < 45:
+        return 'R'  # Right (positive X)
+    elif 45 <= angle_deg < 135:
+        return 'F'  # Forward (positive Y)
+    elif 135 <= angle_deg < 225:
+        return 'L'  # Left (negative X)
+    else:
+        return 'B'  # Backward (negative Y)
+
+def update_navigation():
+    """Update navigation and send direction commands to motors."""
+    global last_navigation_time, current_direction
+
+    current_time = time.time()
+    if current_time - last_navigation_time < NAVIGATION_UPDATE_INTERVAL:
+        return
+
+    if not navigation_enabled:
+        return
+
+    current_x = current_position.get("x", 0.0)
+    current_y = current_position.get("y", 0.0)
+
+    new_direction = calculate_direction(current_x, current_y, TARGET_POSITION["x"], TARGET_POSITION["y"])
+
+    if new_direction != current_direction:
+        if new_direction is None:
+            print("[NAV] Target reached!")
+            navigation_enabled = False
+        else:
+            print(f"[NAV] Direction: {new_direction} (pos: {current_x:.2f}, {current_y:.2f})")
+            send_command(new_direction)
+
+        current_direction = new_direction
+
+    last_navigation_time = current_time
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # UDP COMMUNICATION
@@ -164,11 +239,13 @@ def notification_handler(sender, data: bytearray):
             x, y = trilaterate_2d(p1, ranges[ADDR_A1], p2, ranges[ADDR_A2], p3, ranges[ADDR_A3])
             current_position = {"x": x, "y": y, "anchors": ranges}
             send_position_to_flutter(x, y, ranges)
+            update_navigation()  # Update navigation based on new position
         elif have_a1 and have_a2:
             baseline = math.dist((ANCHORS[ADDR_A1][1], ANCHORS[ADDR_A1][2]), (ANCHORS[ADDR_A2][1], ANCHORS[ADDR_A2][2]))
             x, y = tag_pos_2anchor(ranges[ADDR_A2], ranges[ADDR_A1], baseline)
             current_position = {"x": x, "y": y, "anchors": ranges}
             send_position_to_flutter(x, y, ranges)
+            update_navigation()  # Update navigation based on new position
 
     except Exception as e:
         print(f"[BLE] Parse error: {e}")
@@ -267,6 +344,17 @@ def dashboard():
     <button onclick="sendCmd('B')">Backward</button>
     <button onclick="sendCmd('L')">Left</button>
     <button onclick="sendCmd('R')">Right</button>
+
+    <h3>Auto Navigation</h3>
+    <div>
+        <button onclick="startNav()" style="background-color: #28a745; color: white;">Start Navigation</button>
+        <button onclick="stopNav()" style="background-color: #dc3545; color: white;">Stop Navigation</button>
+    </div>
+    <div id="nav-status" style="margin-top: 10px; padding: 10px; border-radius: 5px; background-color: #f8f9fa;">
+        Navigation: <span id="nav-enabled">Disabled</span><br>
+        Current Direction: <span id="nav-direction">None</span><br>
+        Target: ({{ TARGET_POSITION.x }}, {{ TARGET_POSITION.y }})
+    </div>
     <script>
         function sendCmd(cmd) {
             fetch('/command', {
@@ -275,10 +363,35 @@ def dashboard():
                 body: JSON.stringify({command: cmd})
             });
         }
+
+        function startNav() {
+            fetch('/navigation/start', { method: 'POST' });
+            updateNavStatus();
+        }
+
+        function stopNav() {
+            fetch('/navigation/stop', { method: 'POST' });
+            updateNavStatus();
+        }
+
+        function updateNavStatus() {
+            fetch('/navigation/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('nav-enabled').textContent = data.enabled ? 'Enabled' : 'Disabled';
+                    document.getElementById('nav-direction').textContent = data.current_direction || 'None';
+                    document.getElementById('nav-status').style.backgroundColor = data.enabled ? '#d4edda' : '#f8f9fa';
+                });
+        }
+
+        // Update navigation status every 2 seconds
+        setInterval(updateNavStatus, 2000);
+        // Initial load
+        updateNavStatus();
     </script>
 </body>
 </html>
-    ''', ble_connected=ble_connected, current_position=current_position)
+    ''', ble_connected=ble_connected, current_position=current_position, TARGET_POSITION=TARGET_POSITION)
 
 @app.route('/position')
 def get_position():
@@ -292,6 +405,54 @@ def receive_command():
         send_command(cmd)
         return {'status': 'sent'}
     return {'status': 'invalid'}, 400
+
+@app.route('/navigation/start', methods=['POST'])
+def start_navigation():
+    global navigation_enabled, current_direction
+    navigation_enabled = True
+    current_direction = None
+    print("[NAV] Navigation started")
+    return {'status': 'started'}
+
+@app.route('/navigation/stop', methods=['POST'])
+def stop_navigation():
+    global navigation_enabled, current_direction
+    navigation_enabled = False
+    current_direction = None
+    print("[NAV] Navigation stopped")
+    return {'status': 'stopped'}
+
+@app.route('/navigation/status')
+def get_navigation_status():
+    return jsonify({
+        'enabled': navigation_enabled,
+        'current_direction': current_direction,
+        'target': TARGET_POSITION,
+        'threshold': NAVIGATION_THRESHOLD
+    })
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TEST FUNCTIONS (for development)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_navigation():
+    """Test navigation calculations at different positions."""
+    test_positions = [
+        (0.0, 0.0),    # Bottom left
+        (3.0, 0.0),    # Bottom right
+        (1.5, 2.6),    # Top center
+        (1.5, 1.3),    # Target (should return None)
+        (0.5, 0.5),    # Near bottom left
+        (2.5, 2.0),    # Near top right
+    ]
+
+    print("[TEST] Navigation directions from different positions:")
+    for x, y in test_positions:
+        direction = calculate_direction(x, y, TARGET_POSITION["x"], TARGET_POSITION["y"])
+        distance = math.sqrt((x - TARGET_POSITION["x"])**2 + (y - TARGET_POSITION["y"])**2)
+        print(f"  Position ({x}, {y}) -> Direction: {direction}, Distance: {distance:.2f}m")
+
+# Uncomment to run navigation test: test_navigation()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENTRY POINT

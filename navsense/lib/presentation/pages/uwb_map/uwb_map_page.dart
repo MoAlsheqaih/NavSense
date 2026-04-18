@@ -5,6 +5,9 @@ import 'package:flutter_compass/flutter_compass.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../data/models/corridor_map.dart';
+import '../../../domain/entities/route_plan.dart';
+import '../../../services/haptic/wearable_haptic_service.dart';
 import '../../../services/uwb/uwb_anchor.dart';
 import '../../../services/uwb/uwb_position.dart';
 import '../../../services/uwb/uwb_service.dart';
@@ -23,36 +26,37 @@ class _CanvasTransform {
 // ── Navigation path ───────────────────────────────────────────────────────────
 
 class _NavPath {
-  final List<Offset> waypoints; // world coords, first = start, last = dest
-  int currentIndex; // which waypoint we're heading to (starts at 1)
+  final List<Offset> waypoints;
+  final List<bool> isCorner;
+  int currentIndex;
 
-  _NavPath({required this.waypoints}) : currentIndex = 1;
+  _NavPath({required this.waypoints, this.isCorner = const []})
+      : currentIndex = 1;
 
   Offset get current => waypoints[currentIndex];
   Offset get destination => waypoints.last;
   bool get isLast => currentIndex == waypoints.length - 1;
   int get totalSteps => waypoints.length - 1;
-  int get step => currentIndex; // 1-based
+  int get step => currentIndex;
+
+  bool get isCurrentCorner {
+    if (isCorner.isEmpty) return false;
+    return currentIndex < isCorner.length && isCorner[currentIndex];
+  }
 
   void advance() {
     if (!isLast) currentIndex++;
   }
 
-  /// Build a path from [from] to [to], inserting intermediate waypoints
-  /// every [segmentM] metres so each segment is stable to navigate.
-  static _NavPath build(Offset from, Offset to, {double segmentM = 2.0}) {
-    final dx = to.dx - from.dx;
-    final dy = to.dy - from.dy;
-    final totalDist = sqrt(dx * dx + dy * dy);
-    final n = (totalDist / segmentM).ceil().clamp(1, 10);
-    final pts = <Offset>[from];
-    for (int i = 1; i <= n; i++) {
-      pts.add(Offset(
-        from.dx + dx * i / n,
-        from.dy + dy * i / n,
-      ));
-    }
-    return _NavPath(waypoints: pts);
+  /// Build a clean L-shaped path: start → corner → destination
+  static _NavPath build(Offset from, Offset to) {
+    final router = CorridorRouter();
+    final pathCorners = router.findPath(from, to);
+
+    final waypoints = pathCorners.map((pc) => pc.position).toList();
+    final isCorner = pathCorners.map((pc) => pc.isCorner).toList();
+
+    return _NavPath(waypoints: waypoints, isCorner: isCorner);
   }
 }
 
@@ -67,6 +71,7 @@ class UwbMapPage extends StatefulWidget {
 
 class _UwbMapPageState extends State<UwbMapPage> {
   late final UwbService _uwbService;
+  late final WearableHapticService _wearableService;
   UwbPosition? _position;
   UwbPosition? _prevPosition;
   UwbConnectionState _connState = UwbConnectionState.disconnected;
@@ -74,6 +79,7 @@ class _UwbMapPageState extends State<UwbMapPage> {
   double? _movementDeg;
   double? _smoothedMovementDeg;
   _NavPath? _path;
+  _NavInstruction? _lastInstruction;
   StreamSubscription? _posSub;
   StreamSubscription? _connSub;
   StreamSubscription<CompassEvent>? _compassSub;
@@ -82,16 +88,25 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
   static const double _minMoveDist = 0.15;
   static const double _emaAlpha = 0.4;
-  static const double _waypointRadius = 0.6; // advance to next waypoint within this
+  static const double _waypointRadius = 0.6;
+  static const Duration _hapticInterval = Duration(seconds: 1);
+
+  Timer? _hapticTimer;
 
   @override
   void initState() {
     super.initState();
     _uwbService = GetIt.I<UwbService>();
+    _wearableService = GetIt.I<WearableHapticService>();
     _connState = _uwbService.isConnected
         ? UwbConnectionState.connected
         : UwbConnectionState.disconnected;
     _position = _uwbService.lastPosition;
+
+    _wearableService.connect().catchError((_) {});
+
+    _hapticTimer =
+        Timer.periodic(_hapticInterval, (_) => _sendPeriodicHaptic());
 
     _posSub = _uwbService.positionStream.listen((pos) {
       if (!mounted) return;
@@ -119,13 +134,25 @@ class _UwbMapPageState extends State<UwbMapPage> {
         _prevPosition = _position;
         _position = pos;
 
-        // Advance path waypoint if close enough
+        // Advance path waypoint if close enough - recalculate route in real-time
         if (_path != null) {
           final wp = _path!.current;
           final dx = wp.dx - pos.x;
           final dy = wp.dy - pos.y;
           final d = sqrt(dx * dx + dy * dy);
-          if (d < _waypointRadius) _path!.advance();
+
+          if (d < _waypointRadius) {
+            _path!.advance();
+
+            // Recalculate route from new position to destination
+            if (!_path!.isLast && _position != null) {
+              final newPath = _NavPath.build(
+                Offset(pos.x, pos.y),
+                _path!.destination,
+              );
+              setState(() => _path = newPath);
+            }
+          }
         }
       });
     });
@@ -148,8 +175,7 @@ class _UwbMapPageState extends State<UwbMapPage> {
     final dest = _path!.destination;
     final dx = dest.dx - _position!.x;
     final dy = dest.dy - _position!.y;
-    return sqrt(dx * dx + dy * dy) < _waypointRadius &&
-        _path!.isLast;
+    return sqrt(dx * dx + dy * dy) < _waypointRadius && _path!.isLast;
   }
 
   // Bearing from current position to current waypoint
@@ -168,10 +194,71 @@ class _UwbMapPageState extends State<UwbMapPage> {
     if (bearing == null || heading == null) return null;
     double diff = (bearing - heading + 360) % 360;
     if (diff > 180) diff -= 360;
-    if (diff.abs() < 30) return _NavInstruction.forward;
-    if (diff > 30 && diff <= 150) return _NavInstruction.right;
-    if (diff < -30 && diff >= -150) return _NavInstruction.left;
-    return _NavInstruction.turnAround;
+    _NavInstruction inst;
+    if (diff.abs() < 30) {
+      inst = _NavInstruction.forward;
+    } else if (diff > 30 && diff <= 150) {
+      inst = _NavInstruction.right;
+    } else if (diff < -30 && diff >= -150) {
+      inst = _NavInstruction.left;
+    } else {
+      inst = _NavInstruction.turnAround;
+    }
+    if (inst != _lastInstruction && _path != null) {
+      _lastInstruction = inst;
+      final isCorner = _path!.isCurrentCorner;
+      final isDest = _path!.isLast;
+      if (isCorner || isDest) {
+        _triggerHaptic(inst);
+      }
+    }
+    return inst;
+  }
+
+  void _triggerHaptic(_NavInstruction inst) {
+    if (!_wearableService.isConnected) return;
+    if (_path != null && _path!.isLast) {
+      _wearableService.triggerDirection(TurnDirection.arrived);
+      return;
+    }
+    TurnDirection? dir;
+    switch (inst) {
+      case _NavInstruction.forward:
+        return;
+      case _NavInstruction.left:
+        dir = TurnDirection.left;
+      case _NavInstruction.right:
+        dir = TurnDirection.right;
+      case _NavInstruction.turnAround:
+        dir = TurnDirection.left;
+    }
+    if (dir != null) _wearableService.triggerDirection(dir);
+  }
+
+  void _sendPeriodicHaptic() {
+    if (_path == null || _position == null) return;
+    if (!_wearableService.isConnected) return;
+    if (_arrived) return;
+
+    final bearing = _bearingToWaypoint;
+    final heading = _activeHeading;
+    if (bearing == null || heading == null) return;
+
+    double diff = (bearing - heading + 360) % 360;
+    if (diff > 180) diff -= 360;
+
+    TurnDirection? dir;
+    if (diff.abs() < 30) {
+      dir = TurnDirection.straight;
+    } else if (diff > 30 && diff <= 150) {
+      dir = TurnDirection.right;
+    } else if (diff < -30 && diff >= -150) {
+      dir = TurnDirection.left;
+    } else {
+      dir = TurnDirection.left;
+    }
+
+    _wearableService.triggerDirection(dir);
   }
 
   double? get _distToCurrentWaypoint {
@@ -189,7 +276,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
       _path = _NavPath.build(
         Offset(_position!.x, _position!.y),
         world,
-        segmentM: 2.0,
       );
     });
   }
@@ -199,6 +285,7 @@ class _UwbMapPageState extends State<UwbMapPage> {
     _posSub?.cancel();
     _connSub?.cancel();
     _compassSub?.cancel();
+    _hapticTimer?.cancel();
     super.dispose();
   }
 
@@ -310,26 +397,26 @@ class _NavCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (arrived) {
-      return _card(AppTheme.successColor, Icons.check_circle,
-          'You have arrived!', null);
+      return _card(
+          AppTheme.successColor, Icons.check_circle, 'You have arrived!', null);
     }
     if (instruction == null) {
-      return _card(Colors.grey, Icons.directions_walk,
-          'Start moving…', distToWaypoint);
+      return _card(
+          Colors.grey, Icons.directions_walk, 'Start moving…', distToWaypoint);
     }
     switch (instruction!) {
       case _NavInstruction.forward:
-        return _card(AppTheme.successColor, Icons.arrow_upward,
-            'Go Forward', distToWaypoint);
+        return _card(AppTheme.successColor, Icons.arrow_upward, 'Go Forward',
+            distToWaypoint);
       case _NavInstruction.left:
-        return _card(Colors.orange, Icons.turn_left,
-            'Turn Left', distToWaypoint);
+        return _card(
+            Colors.orange, Icons.turn_left, 'Turn Left', distToWaypoint);
       case _NavInstruction.right:
-        return _card(Colors.orange, Icons.turn_right,
-            'Turn Right', distToWaypoint);
+        return _card(
+            Colors.orange, Icons.turn_right, 'Turn Right', distToWaypoint);
       case _NavInstruction.turnAround:
-        return _card(Colors.red, Icons.u_turn_left,
-            'Turn Around', distToWaypoint);
+        return _card(
+            Colors.red, Icons.u_turn_left, 'Turn Around', distToWaypoint);
     }
   }
 
@@ -370,9 +457,7 @@ class _NavCard extends StatelessWidget {
                       ? '${(dist * 100).toStringAsFixed(0)} cm'
                       : '${dist.toStringAsFixed(1)} m',
                   style: TextStyle(
-                      color: color,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                      color: color, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 Text('to checkpoint',
                     style: TextStyle(
@@ -453,7 +538,9 @@ class _MapPainter extends CustomPainter {
     // Anchor rings
     for (final a in anchors) {
       if (a.distanceMeters > 0) {
-        canvas.drawCircle(tc(a.x, a.y), a.distanceMeters * scale,
+        canvas.drawCircle(
+            tc(a.x, a.y),
+            a.distanceMeters * scale,
             Paint()
               ..color = AppTheme.primaryColor.withValues(alpha: 0.18)
               ..style = PaintingStyle.stroke
@@ -461,58 +548,61 @@ class _MapPainter extends CustomPainter {
       }
     }
 
-    // Route: dashed line through all waypoints
+    // Route: clean L-shape - straight lines from start to corner to destination
     if (path != null) {
       final pts = path!.waypoints;
+
+      // Draw two straight lines: start→corner→dest (L-shape)
       for (int i = 0; i < pts.length - 1; i++) {
         final a = tc(pts[i].dx, pts[i].dy);
         final b = tc(pts[i + 1].dx, pts[i + 1].dy);
+        final isCorner = path!.isCorner.length > i + 1 && path!.isCorner[i + 1];
         final done = i < path!.currentIndex - 1;
-        _dashedLine(canvas, a, b,
-            Paint()
-              ..color = done
-                  ? Colors.white.withValues(alpha: 0.2)
-                  : Colors.yellow.withValues(alpha: 0.7)
-              ..strokeWidth = done ? 1 : 2);
-      }
 
-      // Waypoint circles (intermediate)
-      for (int i = 1; i < pts.length - 1; i++) {
-        final p = tc(pts[i].dx, pts[i].dy);
-        final done = i < path!.currentIndex;
-        canvas.drawCircle(p, 6,
-            Paint()
-              ..color = (done ? Colors.white : Colors.yellow)
-                  .withValues(alpha: 0.4)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.5);
-        if (i == path!.currentIndex) {
-          // Highlight current target
-          canvas.drawCircle(p, 8,
-              Paint()
-                ..color = Colors.yellow.withValues(alpha: 0.2)
-                ..style = PaintingStyle.fill);
+        Paint linePaint = Paint()
+          ..color = done
+              ? Colors.white.withValues(alpha: 0.2)
+              : Colors.yellow.withValues(alpha: 0.7)
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round;
+
+        if (isCorner && !done) {
+          linePaint.color = Colors.orange;
         }
-        _drawLabel(canvas, 'P$i',
-            done ? Colors.white.withValues(alpha: 0.3) : Colors.yellow,
-            9, p, -16);
+
+        canvas.drawLine(a, b, linePaint);
+
+        if (isCorner && !done) {
+          canvas.drawCircle(
+              a,
+              10,
+              Paint()
+                ..color = Colors.orange
+                ..style = PaintingStyle.fill);
+          _drawLabel(canvas, 'TURN', Colors.orange, 10, a, -18, bold: true);
+        }
       }
 
       // Destination marker
       final dest = tc(pts.last.dx, pts.last.dy);
-      canvas.drawCircle(dest, 12,
-          Paint()
-            ..color = Colors.yellow.withValues(alpha: 0.2));
-      canvas.drawCircle(dest, 12,
+      canvas.drawCircle(
+          dest, 14, Paint()..color = Colors.yellow.withValues(alpha: 0.2));
+      canvas.drawCircle(
+          dest,
+          14,
           Paint()
             ..color = Colors.yellow
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2);
-      const r = 5.0;
-      final xp = Paint()..color = Colors.yellow..strokeWidth = 2;
-      canvas.drawLine(dest + const Offset(-r, -r), dest + const Offset(r, r), xp);
-      canvas.drawLine(dest + const Offset(r, -r), dest + const Offset(-r, r), xp);
-      _drawLabel(canvas, 'DEST', Colors.yellow, 10, dest, 16, bold: true);
+      const r = 6.0;
+      final xp = Paint()
+        ..color = Colors.yellow
+        ..strokeWidth = 2;
+      canvas.drawLine(
+          dest + const Offset(-r, -r), dest + const Offset(r, r), xp);
+      canvas.drawLine(
+          dest + const Offset(r, -r), dest + const Offset(-r, r), xp);
+      _drawLabel(canvas, 'DEST', Colors.yellow, 11, dest, 20, bold: true);
     }
 
     // Anchors
@@ -520,37 +610,50 @@ class _MapPainter extends CustomPainter {
       final pos = tc(a.x, a.y);
       canvas.drawCircle(pos, 10,
           Paint()..color = AppTheme.primaryColor.withValues(alpha: 0.9));
-      canvas.drawCircle(pos, 10,
+      canvas.drawCircle(
+          pos,
+          10,
           Paint()
             ..color = Colors.white.withValues(alpha: 0.25)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5);
       _drawLabel(canvas, a.name, Colors.white, 11, pos, 13);
-      _drawLabel(canvas,
+      _drawLabel(
+          canvas,
           '(${a.x.toStringAsFixed(0)}, ${a.y.toStringAsFixed(0)})',
-          AppTheme.darkOnMuted, 9, pos, 25);
+          AppTheme.darkOnMuted,
+          9,
+          pos,
+          25);
     }
 
     // Tag
     if (tagPosition != null) {
       final tagPos = tc(tagPosition!.x, tagPosition!.y);
       if (headingDeg != null) _drawArrow(canvas, tagPos, headingDeg!);
-      canvas.drawCircle(tagPos, 14,
+      canvas.drawCircle(
+          tagPos,
+          14,
           Paint()
             ..color = AppTheme.successColor.withValues(alpha: 0.25)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2);
-      canvas.drawCircle(tagPos, 10,
-          Paint()..color = AppTheme.successColor);
-      canvas.drawCircle(tagPos, 10,
+      canvas.drawCircle(tagPos, 10, Paint()..color = AppTheme.successColor);
+      canvas.drawCircle(
+          tagPos,
+          10,
           Paint()
             ..color = Colors.white.withValues(alpha: 0.35)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5);
       _drawLabel(canvas, 'YOU', Colors.white, 11, tagPos, 13, bold: true);
-      _drawLabel(canvas,
+      _drawLabel(
+          canvas,
           '(${tagPosition!.x.toStringAsFixed(2)}, ${tagPosition!.y.toStringAsFixed(2)})',
-          AppTheme.successColor, 9, tagPos, 25);
+          AppTheme.successColor,
+          9,
+          tagPos,
+          25);
     }
   }
 
@@ -589,10 +692,10 @@ class _MapPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     canvas.drawLine(origin, tip, p);
     final back = atan2(dy, dx);
-    canvas.drawLine(tip,
-        tip + Offset(cos(back + 2.5) * head, sin(back + 2.5) * head), p);
-    canvas.drawLine(tip,
-        tip + Offset(cos(back - 2.5) * head, sin(back - 2.5) * head), p);
+    canvas.drawLine(
+        tip, tip + Offset(cos(back + 2.5) * head, sin(back + 2.5) * head), p);
+    canvas.drawLine(
+        tip, tip + Offset(cos(back - 2.5) * head, sin(back - 2.5) * head), p);
   }
 
   void _drawNorthIndicator(Canvas canvas) {
@@ -601,14 +704,17 @@ class _MapPainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.5)
       ..strokeWidth = 1.5;
     canvas.drawLine(const Offset(x, y + len), const Offset(x, y - len), p);
-    canvas.drawLine(const Offset(x, y - len), const Offset(x - 5, y - len + 7), p);
-    canvas.drawLine(const Offset(x, y - len), const Offset(x + 5, y - len + 7), p);
+    canvas.drawLine(
+        const Offset(x, y - len), const Offset(x - 5, y - len + 7), p);
+    canvas.drawLine(
+        const Offset(x, y - len), const Offset(x + 5, y - len + 7), p);
     _drawLabel(canvas, 'N', Colors.white.withValues(alpha: 0.6), 10,
         const Offset(x, y - len - 4), -12);
   }
 
   void _drawLabel(Canvas canvas, String text, Color color, double size,
-      Offset center, double yOff, {bool bold = false}) {
+      Offset center, double yOff,
+      {bool bold = false}) {
     final tp = TextPainter(
       text: TextSpan(
         text: text,
@@ -670,7 +776,8 @@ class _InfoPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.location_on, size: 14, color: AppTheme.successColor),
+              const Icon(Icons.location_on,
+                  size: 14, color: AppTheme.successColor),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -705,7 +812,8 @@ class _InfoPanel extends StatelessWidget {
               return Expanded(
                 child: Column(
                   children: [
-                    const Icon(Icons.cell_tower, size: 14, color: AppTheme.primaryColor),
+                    const Icon(Icons.cell_tower,
+                        size: 14, color: AppTheme.primaryColor),
                     const SizedBox(height: 2),
                     Text(a.name,
                         style: const TextStyle(
@@ -763,7 +871,8 @@ class _ConnBadge extends StatelessWidget {
         Icon(Icons.radar, size: 14, color: color),
         const SizedBox(width: 4),
         Text(label,
-            style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+            style: TextStyle(
+                color: color, fontSize: 12, fontWeight: FontWeight.w600)),
       ],
     );
   }

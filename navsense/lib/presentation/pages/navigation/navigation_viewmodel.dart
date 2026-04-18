@@ -74,6 +74,12 @@ class NavigationViewModel extends ChangeNotifier {
         _sessionId!, SessionEventType.routeComputationStart);
     await _loggingService.logEvent(_sessionId!, SessionEventType.routeStarted);
 
+    try {
+      await _wearableHapticService.connect();
+    } catch (e) {
+      debugPrint('[NAV] Wearable connection failed: $e');
+    }
+
     if (useSimulation) {
       await _initializeSimulation();
     } else {

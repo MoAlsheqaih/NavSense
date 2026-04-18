@@ -15,7 +15,7 @@ import '../../services/ble/mock_ble_service.dart';
 import '../../services/ble/real_ble_service.dart';
 import '../../services/haptic/haptic_service.dart';
 import '../../services/haptic/haptic_service_impl.dart';
-import '../../services/haptic/udp_wearable_haptic_service.dart';
+import '../../services/haptic/ble_wearable_haptic_service.dart';
 import '../../services/haptic/wearable_haptic_service.dart';
 import '../../services/logging/session_logging_service.dart';
 import '../../services/logging/session_logging_service_impl.dart';
@@ -69,7 +69,7 @@ Future<void> setupServiceLocator() async {
 
   sl.registerLazySingleton<HapticService>(() => HapticServiceImpl());
   sl.registerLazySingleton<WearableHapticService>(
-      () => UdpWearableHapticService());
+      () => BleWearableHapticService());
   sl.registerLazySingleton<RouteService>(
     () => MockRouteService(sl<FloorRouteDatasource>()),
   );
