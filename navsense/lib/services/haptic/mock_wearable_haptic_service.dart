@@ -55,6 +55,8 @@ class MockWearableHapticService implements WearableHapticService {
         pattern = HapticPattern.goStraight;
       case TurnDirection.arrived:
         pattern = HapticPattern.arrived;
+      case TurnDirection.turnAround:
+        pattern = HapticPattern.offRoute;
     }
     await playPattern(pattern);
   }

@@ -392,25 +392,28 @@ class InstructionsPanel extends StatelessWidget {
       case TurnDirection.left:     return l10n.instruction_turn_left;
       case TurnDirection.right:    return l10n.instruction_turn_right;
       case TurnDirection.straight: return l10n.instruction_go_straight;
-      case TurnDirection.arrived:  return l10n.instruction_arrived;
+      case TurnDirection.arrived:    return l10n.instruction_arrived;
+      case TurnDirection.turnAround: return 'Turn Around';
     }
   }
 
   IconData _getDirectionIcon(TurnDirection d) {
     switch (d) {
-      case TurnDirection.left:     return Icons.turn_left;
-      case TurnDirection.right:    return Icons.turn_right;
-      case TurnDirection.straight: return Icons.arrow_upward;
-      case TurnDirection.arrived:  return Icons.check_circle;
+      case TurnDirection.left:       return Icons.turn_left;
+      case TurnDirection.right:      return Icons.turn_right;
+      case TurnDirection.straight:   return Icons.arrow_upward;
+      case TurnDirection.arrived:    return Icons.check_circle;
+      case TurnDirection.turnAround: return Icons.u_turn_left;
     }
   }
 
   Color _getDirectionColor(TurnDirection d) {
     switch (d) {
-      case TurnDirection.left:     return Colors.orange;
-      case TurnDirection.right:    return Colors.purple;
-      case TurnDirection.straight: return Colors.blue;
-      case TurnDirection.arrived:  return Colors.green;
+      case TurnDirection.left:       return Colors.orange;
+      case TurnDirection.right:      return Colors.purple;
+      case TurnDirection.straight:   return Colors.blue;
+      case TurnDirection.arrived:    return Colors.green;
+      case TurnDirection.turnAround: return Colors.red;
     }
   }
 }

@@ -34,4 +34,12 @@ class HapticServiceImpl implements HapticService {
   Future<void> triggerStraight() async {
     await HapticFeedback.selectionClick();
   }
+
+  @override
+  Future<void> triggerTurnAround() async {
+    for (int i = 0; i < 3; i++) {
+      await HapticFeedback.mediumImpact();
+      await Future.delayed(const Duration(milliseconds: 120));
+    }
+  }
 }

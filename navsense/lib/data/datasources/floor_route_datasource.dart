@@ -366,6 +366,8 @@ String _dirLabel(TurnDirection d) {
       return 'Arrived';
     case TurnDirection.straight:
       return 'Go Straight';
+    case TurnDirection.turnAround:
+      return 'Turn Around';
   }
 }
 
@@ -379,6 +381,8 @@ String _turnInstruction(TurnDirection d) {
       return 'instruction_arrived';
     case TurnDirection.straight:
       return 'instruction_go_straight';
+    case TurnDirection.turnAround:
+      return 'instruction_turn_around';
   }
 }
 

@@ -1,6 +1,6 @@
 import 'waypoint.dart';
 
-enum TurnDirection { left, right, straight, arrived }
+enum TurnDirection { left, right, straight, turnAround, arrived }
 
 class RouteStep {
   final Waypoint waypoint;

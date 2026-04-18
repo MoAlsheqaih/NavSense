@@ -52,18 +52,17 @@ class UdpWearableHapticService implements WearableHapticService {
         cmd = 'R';
       case TurnDirection.straight:
         cmd = 'F';
+      case TurnDirection.turnAround:
+        cmd = 'U';
       case TurnDirection.arrived:
-        // Arrival haptic not mapped to direction commands
         return;
     }
 
-    if (cmd != null) {
-      _socket!.send(
-        cmd.codeUnits,
-        InternetAddress.loopbackIPv4,
-        AppConstants.hapticGatewayPort,
-      );
-      print('Sent haptic command: $cmd');
+    _socket!.send(
+      cmd.codeUnits,
+      InternetAddress.loopbackIPv4,
+      AppConstants.hapticGatewayPort,
+    );
+    print('Sent haptic command: $cmd');
     }
-  }
 }

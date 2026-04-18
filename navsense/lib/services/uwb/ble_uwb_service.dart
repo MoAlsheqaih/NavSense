@@ -27,8 +27,7 @@ class BleUwbService implements UwbService {
   BluetoothDevice? _device;
   StreamSubscription<List<int>>? _notifySub;
   StreamSubscription<BluetoothConnectionState>? _connStateSub;
-  static const double _emaAlpha = 0.3; // EMA smoothing factor (0=no update, 1=no smoothing)
-
+  static const double _emaAlpha = 0.35;
   List<UwbAnchor> _anchors = List.unmodifiable(_anchorMap.values.toList());
   UwbPosition? _lastPosition;
   double? _smoothedX;
@@ -200,7 +199,7 @@ class BleUwbService implements UwbService {
       );
 
       if (position != null) {
-        // EMA smoothing: seed with first reading, then blend
+        // EMA smoothing — direct, no median window for minimum latency
         if (_smoothedX == null || _smoothedY == null) {
           _smoothedX = position.x;
           _smoothedY = position.y;
@@ -220,6 +219,7 @@ class BleUwbService implements UwbService {
       }
     } catch (_) {}
   }
+
 
   String _normalizeAddr(String addr) =>
       addr.trim().toUpperCase().replaceAll('0X', '');

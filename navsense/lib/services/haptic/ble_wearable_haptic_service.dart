@@ -135,13 +135,13 @@ class BleWearableHapticService implements WearableHapticService {
         cmd = 'R';
       case TurnDirection.straight:
         cmd = 'F';
+      case TurnDirection.turnAround:
+        cmd = 'U';
       case TurnDirection.arrived:
         cmd = 'S';
     }
 
-    if (cmd != null) {
-      await _rxChar!.write(cmd.codeUnits);
-      debugPrint('[BLE HAPTIC] Sent: $cmd');
-    }
+    await _rxChar!.write(cmd.codeUnits);
+    debugPrint('[BLE HAPTIC] Sent: $cmd');
   }
 }

@@ -686,6 +686,8 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
         return Colors.blue;
       case TurnDirection.arrived:
         return Colors.green;
+      case TurnDirection.turnAround:
+        return Colors.red;
       case null:
         return Colors.grey;
     }
@@ -701,6 +703,8 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
         return Icons.arrow_upward;
       case TurnDirection.arrived:
         return Icons.check_circle;
+      case TurnDirection.turnAround:
+        return Icons.u_turn_left;
       case null:
         return Icons.hourglass_empty;
     }
@@ -716,6 +720,8 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
         return l10n.instruction_go_straight;
       case TurnDirection.arrived:
         return l10n.instruction_arrived;
+      case TurnDirection.turnAround:
+        return 'Turn Around';
     }
   }
 

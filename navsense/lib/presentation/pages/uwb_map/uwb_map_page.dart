@@ -5,8 +5,8 @@ import 'package:flutter_compass/flutter_compass.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../../core/theme/app_theme.dart';
-import '../../../data/models/corridor_map.dart';
 import '../../../domain/entities/route_plan.dart';
+import '../../../services/haptic/haptic_service.dart';
 import '../../../services/haptic/wearable_haptic_service.dart';
 import '../../../services/uwb/uwb_anchor.dart';
 import '../../../services/uwb/uwb_position.dart';
@@ -23,42 +23,7 @@ class _CanvasTransform {
       );
 }
 
-// ── Navigation path ───────────────────────────────────────────────────────────
-
-class _NavPath {
-  final List<Offset> waypoints;
-  final List<bool> isCorner;
-  int currentIndex;
-
-  _NavPath({required this.waypoints, this.isCorner = const []})
-      : currentIndex = 1;
-
-  Offset get current => waypoints[currentIndex];
-  Offset get destination => waypoints.last;
-  bool get isLast => currentIndex == waypoints.length - 1;
-  int get totalSteps => waypoints.length - 1;
-  int get step => currentIndex;
-
-  bool get isCurrentCorner {
-    if (isCorner.isEmpty) return false;
-    return currentIndex < isCorner.length && isCorner[currentIndex];
-  }
-
-  void advance() {
-    if (!isLast) currentIndex++;
-  }
-
-  /// Build a clean L-shaped path: start → corner → destination
-  static _NavPath build(Offset from, Offset to) {
-    final router = CorridorRouter();
-    final pathCorners = router.findPath(from, to);
-
-    final waypoints = pathCorners.map((pc) => pc.position).toList();
-    final isCorner = pathCorners.map((pc) => pc.isCorner).toList();
-
-    return _NavPath(waypoints: waypoints, isCorner: isCorner);
-  }
-}
+// _NavPath removed — routing is now direct bearing from current position to destination
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -72,32 +37,37 @@ class UwbMapPage extends StatefulWidget {
 class _UwbMapPageState extends State<UwbMapPage> {
   late final UwbService _uwbService;
   late final WearableHapticService _wearableService;
+  late final HapticService _hapticService;
   UwbPosition? _position;
   UwbPosition? _prevPosition;
   UwbConnectionState _connState = UwbConnectionState.disconnected;
   double? _compassDeg;
   double? _movementDeg;
   double? _smoothedMovementDeg;
-  _NavPath? _path;
-  _NavInstruction? _lastInstruction;
+  Offset? _destination;
+  _NavInstruction? _lastFiredInstruction;
+  DateTime? _lastHapticTime;
+  bool _navigationComplete = false;
   StreamSubscription? _posSub;
   StreamSubscription? _connSub;
   StreamSubscription<CompassEvent>? _compassSub;
+  Timer? _renderTimer;
+  bool _dirty = false;
 
   final _transform = _CanvasTransform();
 
   static const double _minMoveDist = 0.15;
   static const double _emaAlpha = 0.4;
-  static const double _waypointRadius = 0.6;
-  static const Duration _hapticInterval = Duration(seconds: 1);
-
-  Timer? _hapticTimer;
+  static const double _arrivalRadius = 1.0; // destination zone (2×2 m area)
+  static const Duration _hapticCooldown = Duration(seconds: 2);
+  static const Duration _hapticReminder = Duration(seconds: 5);
 
   @override
   void initState() {
     super.initState();
     _uwbService = GetIt.I<UwbService>();
     _wearableService = GetIt.I<WearableHapticService>();
+    _hapticService = GetIt.I<HapticService>();
     _connState = _uwbService.isConnected
         ? UwbConnectionState.connected
         : UwbConnectionState.disconnected;
@@ -105,187 +75,175 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
     _wearableService.connect().catchError((_) {});
 
-    _hapticTimer =
-        Timer.periodic(_hapticInterval, (_) => _sendPeriodicHaptic());
+    // Cap UI repaints at 30 fps regardless of how fast data arrives
+    _renderTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (_dirty && mounted) {
+        _dirty = false;
+        setState(() {});
+      }
+    });
 
     _posSub = _uwbService.positionStream.listen((pos) {
       if (!mounted) return;
-      setState(() {
-        // Movement vector
-        if (_prevPosition != null) {
-          final dx = pos.x - _prevPosition!.x;
-          final dy = pos.y - _prevPosition!.y;
-          final dist = sqrt(dx * dx + dy * dy);
-          if (dist >= _minMoveDist) {
-            final rawDeg = atan2(dx, dy) * 180 / pi;
-            final normalized = (rawDeg + 360) % 360;
-            if (_smoothedMovementDeg == null) {
-              _smoothedMovementDeg = normalized;
-            } else {
-              double diff = normalized - _smoothedMovementDeg!;
-              if (diff > 180) diff -= 360;
-              if (diff < -180) diff += 360;
-              _smoothedMovementDeg =
-                  (_smoothedMovementDeg! + _emaAlpha * diff + 360) % 360;
-            }
-            _movementDeg = _smoothedMovementDeg;
+
+      // Movement vector — update fields directly, no setState
+      if (_prevPosition != null) {
+        final dx = pos.x - _prevPosition!.x;
+        final dy = pos.y - _prevPosition!.y;
+        final dist = sqrt(dx * dx + dy * dy);
+        if (dist >= _minMoveDist) {
+          final rawDeg = atan2(dx, dy) * 180 / pi;
+          final normalized = (rawDeg + 360) % 360;
+          if (_smoothedMovementDeg == null) {
+            _smoothedMovementDeg = normalized;
+          } else {
+            double diff = normalized - _smoothedMovementDeg!;
+            if (diff > 180) diff -= 360;
+            if (diff < -180) diff += 360;
+            _smoothedMovementDeg =
+                (_smoothedMovementDeg! + _emaAlpha * diff + 360) % 360;
           }
+          _movementDeg = _smoothedMovementDeg;
         }
-        _prevPosition = _position;
-        _position = pos;
+      }
+      _prevPosition = _position;
+      _position = pos;
+      _dirty = true;
 
-        // Advance path waypoint if close enough - recalculate route in real-time
-        if (_path != null) {
-          final wp = _path!.current;
-          final dx = wp.dx - pos.x;
-          final dy = wp.dy - pos.y;
-          final d = sqrt(dx * dx + dy * dy);
+      // Once arrived, all haptics stop permanently until a new destination is set
+      if (_navigationComplete) return;
 
-          if (d < _waypointRadius) {
-            _path!.advance();
-
-            // Recalculate route from new position to destination
-            if (!_path!.isLast && _position != null) {
-              final newPath = _NavPath.build(
-                Offset(pos.x, pos.y),
-                _path!.destination,
-              );
-              setState(() => _path = newPath);
-            }
-          }
-        }
-      });
+      if (_arrived) {
+        _navigationComplete = true;
+        _fireArrivalHaptic();
+      } else {
+        final inst = _instruction;
+        if (inst != null) _checkAndFireHaptic(inst);
+      }
     });
 
     _connSub = _uwbService.connectionStateStream.stream.listen((s) {
-      if (mounted) setState(() => _connState = s);
+      _connState = s;
+      if (mounted) setState(() {});
     });
 
     _compassSub = FlutterCompass.events?.listen((event) {
-      if (mounted && event.heading != null) {
-        setState(() => _compassDeg = event.heading);
-      }
+      if (event.heading == null) return;
+      // Only mark dirty — render timer will pick it up
+      _compassDeg = event.heading;
+      _dirty = true;
     });
   }
 
   double? get _activeHeading => _movementDeg ?? _compassDeg;
 
   bool get _arrived {
-    if (_path == null || _position == null) return false;
-    final dest = _path!.destination;
-    final dx = dest.dx - _position!.x;
-    final dy = dest.dy - _position!.y;
-    return sqrt(dx * dx + dy * dy) < _waypointRadius && _path!.isLast;
+    if (_destination == null || _position == null) return false;
+    final dx = _destination!.dx - _position!.x;
+    final dy = _destination!.dy - _position!.y;
+    return sqrt(dx * dx + dy * dy) < _arrivalRadius;
   }
 
-  // Bearing from current position to current waypoint
-  double? get _bearingToWaypoint {
-    if (_path == null || _position == null) return null;
-    final wp = _path!.current;
-    final dx = wp.dx - _position!.x;
-    final dy = wp.dy - _position!.y;
+  double? get _bearingToDestination {
+    if (_destination == null || _position == null) return null;
+    final dx = _destination!.dx - _position!.x;
+    final dy = _destination!.dy - _position!.y;
     return (atan2(dx, dy) * 180 / pi + 360) % 360;
   }
 
+  double? get _distToDestination {
+    if (_destination == null || _position == null) return null;
+    final dx = _destination!.dx - _position!.x;
+    final dy = _destination!.dy - _position!.y;
+    return sqrt(dx * dx + dy * dy);
+  }
+
+  // Pure computation — always points directly at destination from current position
   _NavInstruction? get _instruction {
-    if (_arrived || _path == null) return null;
-    final bearing = _bearingToWaypoint;
+    if (_arrived || _destination == null) return null;
+    final bearing = _bearingToDestination;
     final heading = _activeHeading;
     if (bearing == null || heading == null) return null;
     double diff = (bearing - heading + 360) % 360;
     if (diff > 180) diff -= 360;
-    _NavInstruction inst;
-    if (diff.abs() < 30) {
-      inst = _NavInstruction.forward;
-    } else if (diff > 30 && diff <= 150) {
-      inst = _NavInstruction.right;
-    } else if (diff < -30 && diff >= -150) {
-      inst = _NavInstruction.left;
-    } else {
-      inst = _NavInstruction.turnAround;
-    }
-    if (inst != _lastInstruction && _path != null) {
-      _lastInstruction = inst;
-      final isCorner = _path!.isCurrentCorner;
-      final isDest = _path!.isLast;
-      if (isCorner || isDest) {
-        _triggerHaptic(inst);
+    if (diff.abs() < 30) return _NavInstruction.forward;
+    if (diff > 30 && diff <= 150) return _NavInstruction.right;
+    if (diff < -30 && diff >= -150) return _NavInstruction.left;
+    return _NavInstruction.turnAround;
+  }
+
+  void _checkAndFireHaptic(_NavInstruction inst) {
+    final now = DateTime.now();
+    final elapsed = _lastHapticTime == null
+        ? null
+        : now.difference(_lastHapticTime!);
+
+    final changed = inst != _lastFiredInstruction;
+
+    if (changed) {
+      // Always fire on first instruction; afterwards enforce cooldown to prevent
+      // oscillation when heading sits right on a threshold boundary
+      if (elapsed == null || elapsed >= _hapticCooldown) {
+        _fireDirectionHaptic(inst);
+        _lastFiredInstruction = inst;
+        _lastHapticTime = now;
+      }
+    } else if (inst != _NavInstruction.forward) {
+      // Periodic reminder: re-buzz Left/Right/TurnAround if user hasn't adjusted
+      if (elapsed != null && elapsed >= _hapticReminder) {
+        _fireDirectionHaptic(inst);
+        _lastHapticTime = now;
       }
     }
-    return inst;
   }
 
-  void _triggerHaptic(_NavInstruction inst) {
-    if (!_wearableService.isConnected) return;
-    if (_path != null && _path!.isLast) {
-      _wearableService.triggerDirection(TurnDirection.arrived);
-      return;
-    }
-    TurnDirection? dir;
+  void _fireDirectionHaptic(_NavInstruction inst) {
     switch (inst) {
       case _NavInstruction.forward:
-        return;
+        _hapticService.triggerStraight();
+        if (_wearableService.isConnected) {
+          _wearableService.triggerDirection(TurnDirection.straight);
+        }
       case _NavInstruction.left:
-        dir = TurnDirection.left;
+        _hapticService.triggerLeft();
+        if (_wearableService.isConnected) {
+          _wearableService.triggerDirection(TurnDirection.left);
+        }
       case _NavInstruction.right:
-        dir = TurnDirection.right;
+        _hapticService.triggerRight();
+        if (_wearableService.isConnected) {
+          _wearableService.triggerDirection(TurnDirection.right);
+        }
       case _NavInstruction.turnAround:
-        dir = TurnDirection.left;
+        _hapticService.triggerTurnAround();
+        if (_wearableService.isConnected) {
+          _wearableService.triggerDirection(TurnDirection.turnAround);
+        }
     }
-    if (dir != null) _wearableService.triggerDirection(dir);
   }
 
-  void _sendPeriodicHaptic() {
-    if (_path == null || _position == null) return;
-    if (!_wearableService.isConnected) return;
-    if (_arrived) return;
-
-    final bearing = _bearingToWaypoint;
-    final heading = _activeHeading;
-    if (bearing == null || heading == null) return;
-
-    double diff = (bearing - heading + 360) % 360;
-    if (diff > 180) diff -= 360;
-
-    TurnDirection? dir;
-    if (diff.abs() < 30) {
-      dir = TurnDirection.straight;
-    } else if (diff > 30 && diff <= 150) {
-      dir = TurnDirection.right;
-    } else if (diff < -30 && diff >= -150) {
-      dir = TurnDirection.left;
-    } else {
-      dir = TurnDirection.left;
-    }
-
-    _wearableService.triggerDirection(dir);
-  }
-
-  double? get _distToCurrentWaypoint {
-    if (_path == null || _position == null) return null;
-    final wp = _path!.current;
-    final dx = wp.dx - _position!.x;
-    final dy = wp.dy - _position!.y;
-    return sqrt(dx * dx + dy * dy);
+  void _fireArrivalHaptic() {
+    _hapticService.triggerArrival();
+    // Send regardless of connection state — fire and forget, ESP32 fires all motors
+    _wearableService.triggerDirection(TurnDirection.arrived).catchError((_) {});
   }
 
   void _onTap(TapUpDetails details) {
-    if (_position == null) return;
     final world = _transform.toWorld(details.localPosition);
     setState(() {
-      _path = _NavPath.build(
-        Offset(_position!.x, _position!.y),
-        world,
-      );
+      _destination = world;
+      _lastFiredInstruction = null;
+      _lastHapticTime = null;
+      _navigationComplete = false;
     });
   }
 
   @override
   void dispose() {
+    _renderTimer?.cancel();
     _posSub?.cancel();
     _connSub?.cancel();
     _compassSub?.cancel();
-    _hapticTimer?.cancel();
     super.dispose();
   }
 
@@ -296,11 +254,11 @@ class _UwbMapPageState extends State<UwbMapPage> {
       appBar: AppBar(
         title: const Text('UWB Live Map'),
         actions: [
-          if (_path != null)
+          if (_destination != null)
             IconButton(
               icon: const Icon(Icons.clear, size: 18),
               tooltip: 'Clear route',
-              onPressed: () => setState(() => _path = null),
+              onPressed: () => setState(() => _destination = null),
             ),
           if (_activeHeading != null)
             Padding(
@@ -316,19 +274,17 @@ class _UwbMapPageState extends State<UwbMapPage> {
       body: Column(
         children: [
           // Navigation card
-          if (_path != null)
+          if (_destination != null)
             _NavCard(
               instruction: _arrived ? null : _instruction,
-              distToWaypoint: _distToCurrentWaypoint,
-              step: _path!.step,
-              totalSteps: _path!.totalSteps,
+              distToDestination: _distToDestination,
               arrived: _arrived,
             ),
 
-          // Map
+          // Map — fills all remaining space
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
               child: GestureDetector(
                 onTapUp: _onTap,
                 child: Container(
@@ -339,35 +295,39 @@ class _UwbMapPageState extends State<UwbMapPage> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: CustomPaint(
-                      painter: _MapPainter(
-                        anchors: _uwbService.anchors,
-                        tagPosition: _position,
-                        headingDeg: _activeHeading,
-                        path: _path,
-                        transform: _transform,
-                      ),
-                      child: const SizedBox.expand(),
+                    child: Stack(
+                      children: [
+                        RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _MapPainter(
+                              anchors: _uwbService.anchors,
+                              tagPosition: _position,
+                              headingDeg: _activeHeading,
+                              destination: _destination,
+                              transform: _transform,
+                              arrivalRadius: _arrivalRadius,
+                            ),
+                            child: const SizedBox.expand(),
+                          ),
+                        ),
+                        // Slim info bar at bottom of map
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          child: _InfoBar(
+                            position: _position,
+                            anchors: _uwbService.anchors,
+                            headingDeg: _activeHeading,
+                            noRoute: _destination == null,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-
-          if (_path == null)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 6),
-              child: Text(
-                'Tap on the map to set a destination',
-                style: TextStyle(color: AppTheme.darkOnMuted, fontSize: 12),
-              ),
-            ),
-
-          _InfoPanel(
-            position: _position,
-            anchors: _uwbService.anchors,
-            headingDeg: _activeHeading,
           ),
         ],
       ),
@@ -381,46 +341,37 @@ enum _NavInstruction { forward, left, right, turnAround }
 
 class _NavCard extends StatelessWidget {
   final _NavInstruction? instruction;
-  final double? distToWaypoint;
-  final int step;
-  final int totalSteps;
+  final double? distToDestination;
   final bool arrived;
 
   const _NavCard({
     required this.instruction,
-    required this.distToWaypoint,
-    required this.step,
-    required this.totalSteps,
+    required this.distToDestination,
     required this.arrived,
   });
 
   @override
   Widget build(BuildContext context) {
     if (arrived) {
-      return _card(
-          AppTheme.successColor, Icons.check_circle, 'You have arrived!', null);
+      return _card(AppTheme.successColor, Icons.check_circle, 'You have arrived!');
     }
     if (instruction == null) {
-      return _card(
-          Colors.grey, Icons.directions_walk, 'Start moving…', distToWaypoint);
+      return _card(Colors.grey, Icons.directions_walk, 'Start moving…');
     }
     switch (instruction!) {
       case _NavInstruction.forward:
-        return _card(AppTheme.successColor, Icons.arrow_upward, 'Go Forward',
-            distToWaypoint);
+        return _card(AppTheme.successColor, Icons.arrow_upward, 'Go Forward');
       case _NavInstruction.left:
-        return _card(
-            Colors.orange, Icons.turn_left, 'Turn Left', distToWaypoint);
+        return _card(Colors.orange, Icons.turn_left, 'Turn Left');
       case _NavInstruction.right:
-        return _card(
-            Colors.orange, Icons.turn_right, 'Turn Right', distToWaypoint);
+        return _card(Colors.orange, Icons.turn_right, 'Turn Right');
       case _NavInstruction.turnAround:
-        return _card(
-            Colors.red, Icons.u_turn_left, 'Turn Around', distToWaypoint);
+        return _card(Colors.red, Icons.u_turn_left, 'Turn Around');
     }
   }
 
-  Widget _card(Color color, IconData icon, String label, double? dist) {
+  Widget _card(Color color, IconData icon, String label) {
+    final dist = distToDestination;
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -434,19 +385,9 @@ class _NavCard extends StatelessWidget {
           Icon(icon, color: color, size: 34),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
-                Text('Step $step of $totalSteps',
-                    style: TextStyle(
-                        color: color.withValues(alpha: 0.7), fontSize: 11)),
-              ],
-            ),
+            child: Text(label,
+                style: TextStyle(
+                    color: color, fontSize: 20, fontWeight: FontWeight.bold)),
           ),
           if (dist != null)
             Column(
@@ -459,7 +400,7 @@ class _NavCard extends StatelessWidget {
                   style: TextStyle(
                       color: color, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                Text('to checkpoint',
+                Text('to destination',
                     style: TextStyle(
                         color: color.withValues(alpha: 0.7), fontSize: 10)),
               ],
@@ -476,22 +417,24 @@ class _MapPainter extends CustomPainter {
   final List<UwbAnchor> anchors;
   final UwbPosition? tagPosition;
   final double? headingDeg;
-  final _NavPath? path;
+  final Offset? destination;
   final _CanvasTransform transform;
+  final double arrivalRadius;
 
   _MapPainter({
     required this.anchors,
     required this.tagPosition,
     required this.headingDeg,
-    required this.path,
+    required this.destination,
     required this.transform,
+    this.arrivalRadius = 1.0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     if (anchors.isEmpty) return;
 
-    const padding = 48.0;
+    const padding = 12.0;
     final drawW = size.width - padding * 2;
     final drawH = size.height - padding * 2;
 
@@ -548,61 +491,50 @@ class _MapPainter extends CustomPainter {
       }
     }
 
-    // Route: clean L-shape - straight lines from start to corner to destination
-    if (path != null) {
-      final pts = path!.waypoints;
+    // Route: live straight line from current position to destination
+    if (destination != null && tagPosition != null) {
+      final from = tc(tagPosition!.x, tagPosition!.y);
+      final dest = tc(destination!.dx, destination!.dy);
 
-      // Draw two straight lines: start→corner→dest (L-shape)
-      for (int i = 0; i < pts.length - 1; i++) {
-        final a = tc(pts[i].dx, pts[i].dy);
-        final b = tc(pts[i + 1].dx, pts[i + 1].dy);
-        final isCorner = path!.isCorner.length > i + 1 && path!.isCorner[i + 1];
-        final done = i < path!.currentIndex - 1;
+      // Live route line
+      canvas.drawLine(
+          from,
+          dest,
+          Paint()
+            ..color = Colors.yellow.withValues(alpha: 0.7)
+            ..strokeWidth = 3
+            ..strokeCap = StrokeCap.round);
 
-        Paint linePaint = Paint()
-          ..color = done
-              ? Colors.white.withValues(alpha: 0.2)
-              : Colors.yellow.withValues(alpha: 0.7)
-          ..strokeWidth = 3
-          ..strokeCap = StrokeCap.round;
-
-        if (isCorner && !done) {
-          linePaint.color = Colors.orange;
-        }
-
-        canvas.drawLine(a, b, linePaint);
-
-        if (isCorner && !done) {
-          canvas.drawCircle(
-              a,
-              10,
-              Paint()
-                ..color = Colors.orange
-                ..style = PaintingStyle.fill);
-          _drawLabel(canvas, 'TURN', Colors.orange, 10, a, -18, bold: true);
-        }
-      }
-
-      // Destination marker
-      final dest = tc(pts.last.dx, pts.last.dy);
+      // Destination zone (2×2 m area)
+      final zoneR = arrivalRadius * transform.scale;
       canvas.drawCircle(
-          dest, 14, Paint()..color = Colors.yellow.withValues(alpha: 0.2));
+          dest, zoneR, Paint()..color = Colors.yellow.withValues(alpha: 0.08));
       canvas.drawCircle(
           dest,
-          14,
+          zoneR,
           Paint()
-            ..color = Colors.yellow
+            ..color = Colors.yellow.withValues(alpha: 0.5)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 2);
+            ..strokeWidth = 1.5);
       const r = 6.0;
-      final xp = Paint()
-        ..color = Colors.yellow
-        ..strokeWidth = 2;
-      canvas.drawLine(
-          dest + const Offset(-r, -r), dest + const Offset(r, r), xp);
-      canvas.drawLine(
-          dest + const Offset(r, -r), dest + const Offset(-r, r), xp);
-      _drawLabel(canvas, 'DEST', Colors.yellow, 11, dest, 20, bold: true);
+      final xp = Paint()..color = Colors.yellow..strokeWidth = 2;
+      canvas.drawLine(dest + const Offset(-r, -r), dest + const Offset(r, r), xp);
+      canvas.drawLine(dest + const Offset(r, -r), dest + const Offset(-r, r), xp);
+      _drawLabel(canvas, 'DEST', Colors.yellow, 11, dest, zoneR + 4, bold: true);
+    } else if (destination != null) {
+      // Show destination even without position fix
+      final dest = tc(destination!.dx, destination!.dy);
+      final zoneR = arrivalRadius * transform.scale;
+      canvas.drawCircle(
+          dest, zoneR, Paint()..color = Colors.yellow.withValues(alpha: 0.08));
+      canvas.drawCircle(
+          dest,
+          zoneR,
+          Paint()
+            ..color = Colors.yellow.withValues(alpha: 0.5)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5);
+      _drawLabel(canvas, 'DEST', Colors.yellow, 11, dest, zoneR + 4, bold: true);
     }
 
     // Anchors
@@ -657,29 +589,6 @@ class _MapPainter extends CustomPainter {
     }
   }
 
-  void _dashedLine(Canvas canvas, Offset a, Offset b, Paint paint) {
-    const dash = 8.0, gap = 5.0;
-    final dx = b.dx - a.dx;
-    final dy = b.dy - a.dy;
-    final len = sqrt(dx * dx + dy * dy);
-    final ux = dx / len, uy = dy / len;
-    double t = 0;
-    bool draw = true;
-    while (t < len) {
-      final seg = draw ? dash : gap;
-      final t2 = min(t + seg, len);
-      if (draw) {
-        canvas.drawLine(
-          a + Offset(ux * t, uy * t),
-          a + Offset(ux * t2, uy * t2),
-          paint,
-        );
-      }
-      t = t2;
-      draw = !draw;
-    }
-  }
-
   void _drawArrow(Canvas canvas, Offset origin, double deg) {
     const len = 40.0, head = 10.0;
     final rad = deg * pi / 180;
@@ -730,104 +639,72 @@ class _MapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MapPainter old) =>
-      old.tagPosition != tagPosition ||
-      old.anchors != anchors ||
-      old.headingDeg != headingDeg ||
-      old.path?.currentIndex != path?.currentIndex ||
-      old.path?.waypoints != path?.waypoints;
+  bool shouldRepaint(_MapPainter old) {
+    if (old.destination != destination) return true;
+    if (old.tagPosition?.x != tagPosition?.x ||
+        old.tagPosition?.y != tagPosition?.y) {
+      return true;
+    }
+    final oldH = old.headingDeg, newH = headingDeg;
+    if (oldH != newH) {
+      if (oldH == null || newH == null) return true;
+      if ((oldH - newH).abs() >= 1.0) return true;
+    }
+    return false;
+  }
 }
 
-// ── Info Panel ────────────────────────────────────────────────────────────────
+// ── Info Bar (slim overlay at bottom of map) ──────────────────────────────────
 
-class _InfoPanel extends StatelessWidget {
+class _InfoBar extends StatelessWidget {
   final UwbPosition? position;
   final List<UwbAnchor> anchors;
   final double? headingDeg;
+  final bool noRoute;
 
-  const _InfoPanel({
+  const _InfoBar({
     required this.position,
     required this.anchors,
     required this.headingDeg,
+    required this.noRoute,
   });
-
-  String _cardinal(double deg) {
-    if (deg < 22.5 || deg >= 337.5) return 'N';
-    if (deg < 67.5) return 'NE';
-    if (deg < 112.5) return 'E';
-    if (deg < 157.5) return 'SE';
-    if (deg < 202.5) return 'S';
-    if (deg < 247.5) return 'SW';
-    if (deg < 292.5) return 'W';
-    return 'NW';
-  }
 
   @override
   Widget build(BuildContext context) {
+    final posText = position != null
+        ? 'x ${position!.x.toStringAsFixed(1)}  y ${position!.y.toStringAsFixed(1)}'
+        : 'Waiting…';
+
+    final anchorTexts = anchors
+        .where((a) => a.distanceMeters > 0)
+        .map((a) => '${a.name}: ${a.distanceMeters.toStringAsFixed(1)}m')
+        .join('   ');
+
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.darkCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.darkBorder),
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.location_on,
-                  size: 14, color: AppTheme.successColor),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  position != null
-                      ? 'x = ${position!.x.toStringAsFixed(2)} m    y = ${position!.y.toStringAsFixed(2)} m'
-                      : 'Tag: waiting for data...',
-                  style: const TextStyle(
-                      color: AppTheme.successColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13),
-                ),
-              ),
-              if (headingDeg != null) ...[
-                const Icon(Icons.navigation, size: 14, color: Colors.orange),
-                const SizedBox(width: 4),
-                Text(
-                  '${headingDeg!.toStringAsFixed(0)}°  ${_cardinal(headingDeg!)}',
-                  style: const TextStyle(
-                      color: Colors.orange,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13),
-                ),
-              ],
-            ],
+          const Icon(Icons.location_on, size: 12, color: AppTheme.successColor),
+          const SizedBox(width: 4),
+          Text(posText,
+              style: const TextStyle(
+                  color: AppTheme.successColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(anchorTexts,
+                style: const TextStyle(
+                    color: AppTheme.darkOnMuted, fontSize: 10),
+                overflow: TextOverflow.ellipsis),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: anchors.map((a) {
-              final dist = a.distanceMeters > 0
-                  ? '${a.distanceMeters.toStringAsFixed(2)} m'
-                  : '—';
-              return Expanded(
-                child: Column(
-                  children: [
-                    const Icon(Icons.cell_tower,
-                        size: 14, color: AppTheme.primaryColor),
-                    const SizedBox(height: 2),
-                    Text(a.name,
-                        style: const TextStyle(
-                            color: AppTheme.primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11)),
-                    Text(dist,
-                        style: const TextStyle(
-                            color: AppTheme.darkOnMuted, fontSize: 11)),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
+          if (noRoute)
+            const Text('Tap map to navigate',
+                style: TextStyle(color: AppTheme.darkOnMuted, fontSize: 10)),
         ],
       ),
     );

@@ -34,7 +34,7 @@ class HapticPattern {
     required this.pulses,
   });
 
-  static final turnLeft = HapticPattern(
+  static const turnLeft = HapticPattern(
     name: 'turn_left',
     pulses: [
       MotorPulse(
@@ -51,7 +51,7 @@ class HapticPattern {
     ],
   );
 
-  static final turnRight = HapticPattern(
+  static const turnRight = HapticPattern(
     name: 'turn_right',
     pulses: [
       MotorPulse(
@@ -68,7 +68,7 @@ class HapticPattern {
     ],
   );
 
-  static final goStraight = HapticPattern(
+  static const goStraight = HapticPattern(
     name: 'go_straight',
     pulses: [
       MotorPulse(
@@ -84,7 +84,7 @@ class HapticPattern {
     ],
   );
 
-  static final arrived = HapticPattern(
+  static const arrived = HapticPattern(
     name: 'arrived',
     pulses: [
       MotorPulse(
@@ -110,7 +110,7 @@ class HapticPattern {
     ],
   );
 
-  static final offRoute = HapticPattern(
+  static const offRoute = HapticPattern(
     name: 'off_route',
     pulses: [
       MotorPulse(

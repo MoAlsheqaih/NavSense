@@ -74,6 +74,8 @@ class DirectionCard extends StatelessWidget {
         return [const Color(0xFF0D47A1), AppTheme.accentColor];
       case TurnDirection.arrived:
         return [const Color(0xFF1B5E20), AppTheme.successColor];
+      case TurnDirection.turnAround:
+        return [const Color(0xFF7B1FA2), Colors.red];
     }
   }
 
@@ -87,6 +89,8 @@ class DirectionCard extends StatelessWidget {
         return Icons.straight;
       case TurnDirection.arrived:
         return Icons.flag;
+      case TurnDirection.turnAround:
+        return Icons.u_turn_left;
     }
   }
 }

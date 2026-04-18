@@ -482,6 +482,8 @@ class _StepRow extends StatelessWidget {
         return Icons.straight;
       case TurnDirection.arrived:
         return Icons.flag;
+      case TurnDirection.turnAround:
+        return Icons.u_turn_left;
     }
   }
 

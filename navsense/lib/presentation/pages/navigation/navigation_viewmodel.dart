@@ -215,6 +215,11 @@ class NavigationViewModel extends ChangeNotifier {
         await _hapticService.triggerStraight();
         await _wearableHapticService.triggerDirection(TurnDirection.straight);
         break;
+      case TurnDirection.turnAround:
+        _lastHapticLabel = 'hapticTurnAround';
+        await _hapticService.triggerTurnAround();
+        await _wearableHapticService.triggerDirection(TurnDirection.turnAround);
+        break;
     }
     notifyListeners();
   }

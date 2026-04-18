@@ -15,4 +15,7 @@ abstract class HapticService {
 
   /// Straight-ahead confirmation pulse.
   Future<void> triggerStraight();
+
+  /// Triple alternating pulse — turn around / U-turn.
+  Future<void> triggerTurnAround();
 }
