@@ -553,15 +553,17 @@ test('service locator provides singletons', () {
 #### **Test SW-07: Internationalization (i18n)**
 
 **Files:**
-- `lib/l10n/app_localizations_en.dart` (default)
-- `lib/l10n/app_localizations_ar.dart` (Arabic RTL)
+- `lib/l10n/app_en.arb` (English source — canonical)
+- `lib/l10n/app_ar.arb` (Arabic source — canonical)
+- `lib/l10n/app_localizations_en.dart` (generated)
+- `lib/l10n/app_localizations_ar.dart` (generated)
 
 **Validation:**
 1. Switch language in `SettingsPage`
 2. Verify all user-facing strings update
 3. Arabic: confirm text direction RTL on `Text` widgets
 
-**Missing translations:** 3 strings in `NavigationPage` have `TODO: translate` comments.
+**Coverage (as of April 2026):** All ~74 localization keys implemented across every screen — Home, Navigation, Simulation, UWB Map, Beacon Scanner, Session History, Settings. No hardcoded English strings remain in any UI file. Dart files are auto-generated via `flutter gen-l10n` from the ARB source files.
 
 ---
 
@@ -599,7 +601,7 @@ test('service locator provides singletons', () {
 | SW-04 | ✓ Pass | No | DI container healthy |
 | SW-05 | ✓ Pass | Yes | Exceptions caught |
 | SW-06 | ⚠ Warning | No | 2 hard-coded constants → refactor |
-| SW-07 | ⚠ Warning | No | 3 untranslated strings |
+| SW-07 | ✓ Pass | No | Full EN/AR coverage — ~74 keys across all screens |
 | SW-08 | ✓ Pass | No | Persistence works |
 
 ---
