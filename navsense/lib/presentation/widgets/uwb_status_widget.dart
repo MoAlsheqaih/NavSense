@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../l10n/app_localizations.dart';
 import '../../services/uwb/uwb_service.dart';
 import '../../services/uwb/uwb_position.dart';
 
@@ -42,6 +43,7 @@ class _UwbStatusWidgetState extends State<UwbStatusWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final color = _statusColor();
 
     return Container(
@@ -62,7 +64,7 @@ class _UwbStatusWidgetState extends State<UwbStatusWidget> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'UWB  ${_statusLabel()}',
+                  'UWB  ${_statusLabel(l10n)}',
                   style: TextStyle(
                       color: color, fontSize: 12, fontWeight: FontWeight.w600),
                 ),
@@ -129,16 +131,16 @@ class _UwbStatusWidgetState extends State<UwbStatusWidget> {
     }
   }
 
-  String _statusLabel() {
+  String _statusLabel(AppLocalizations l10n) {
     switch (_connState) {
       case UwbConnectionState.connected:
-        return 'Connected';
+        return l10n.uwbConnected;
       case UwbConnectionState.connecting:
-        return 'Searching...';
+        return l10n.uwbSearching;
       case UwbConnectionState.error:
-        return 'Error';
+        return l10n.uwbStatusError;
       case UwbConnectionState.disconnected:
-        return 'Disconnected';
+        return l10n.uwbDisconnected;
     }
   }
 }

@@ -28,6 +28,18 @@
   "homeComputingRoute": "Computing route…",
   "@homeComputingRoute": { "description": "Loading state" },
 
+  "homeBeaconScanner": "Beacon Scanner",
+  "@homeBeaconScanner": { "description": "Beacon scanner page label" },
+
+  "homeStartingFrom": "Starting from",
+  "@homeStartingFrom": { "description": "Starting room label" },
+
+  "homeSelectStartRoom": "Select start room",
+  "@homeSelectStartRoom": { "description": "Start room hint" },
+
+  "homeDijkstraFeature": "Dijkstra Routing",
+  "@homeDijkstraFeature": { "description": "Feature badge label" },
+
   "navigationHeading": "Navigating",
   "@navigationHeading": { "description": "Navigation page title" },
 
@@ -64,6 +76,48 @@
     }
   },
 
+  "navPageTitle": "Navigation",
+  "@navPageTitle": { "description": "Navigation page AppBar title" },
+
+  "navNoRoute": "No route available",
+  "@navNoRoute": { "description": "No route fallback message" },
+
+  "navOk": "OK",
+  "@navOk": { "description": "OK button label" },
+
+  "navBleBeacon": "BLE Beacon",
+  "@navBleBeacon": { "description": "BLE beacon section header" },
+
+  "navSignal": "Signal",
+  "@navSignal": { "description": "Signal strength label" },
+
+  "navScanningBeacon": "Scanning for beacon…",
+  "@navScanningBeacon": { "description": "Beacon scanning status" },
+
+  "navStrengthVeryClose": "Very Close",
+  "@navStrengthVeryClose": { "description": "Beacon proximity: very close" },
+
+  "navStrengthClose": "Close",
+  "@navStrengthClose": { "description": "Beacon proximity: close" },
+
+  "navStrengthMedium": "Medium",
+  "@navStrengthMedium": { "description": "Beacon proximity: medium" },
+
+  "navSearchingBadge": "Searching…",
+  "@navSearchingBadge": { "description": "Beacon searching badge" },
+
+  "navDijkstraRoute": "Dijkstra Route  •  {count} steps",
+  "@navDijkstraRoute": {
+    "description": "Route header with step count",
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "navOffRoute": "Off Route",
+  "@navOffRoute": { "description": "Off-route action button" },
+
+  "navNextStep": "Next Step",
+  "@navNextStep": { "description": "Next step action button" },
+
   "instruction_go_straight": "Go straight",
   "@instruction_go_straight": { "description": "Navigation instruction" },
 
@@ -79,6 +133,9 @@
   "instruction_off_route": "Off route — recalculating…",
   "@instruction_off_route": { "description": "Off-route alert" },
 
+  "instructionTurnAround": "Turn Around",
+  "@instructionTurnAround": { "description": "Navigation instruction: turn around" },
+
   "hapticLeft": "Left pulse",
   "@hapticLeft": { "description": "Haptic pattern label" },
 
@@ -90,6 +147,177 @@
 
   "hapticOffRoute": "Alert pulses",
   "@hapticOffRoute": { "description": "Haptic pattern label" },
+
+  "simTitle": "Simulation",
+  "@simTitle": { "description": "Simulation mode title" },
+
+  "simReset": "Reset",
+  "@simReset": { "description": "Reset simulation button" },
+
+  "simPause": "Pause",
+  "@simPause": { "description": "Pause simulation button" },
+
+  "simPlay": "Play",
+  "@simPlay": { "description": "Play simulation button" },
+
+  "simStartOver": "Start Over",
+  "@simStartOver": { "description": "Arrived dialog: start over button" },
+
+  "simFloorPlan": "Floor Plan",
+  "@simFloorPlan": { "description": "Floor plan section header" },
+
+  "simNext": "Next",
+  "@simNext": { "description": "Next label in mobile metrics" },
+
+  "simNextTurn": "Next Turn",
+  "@simNextTurn": { "description": "Next turn metric label" },
+
+  "simRemaining": "Remaining",
+  "@simRemaining": { "description": "Remaining distance label" },
+
+  "simEta": "ETA",
+  "@simEta": { "description": "ETA label" },
+
+  "simNoRoute": "No route planned",
+  "@simNoRoute": { "description": "Empty route state in step progress" },
+
+  "simControls": "Controls",
+  "@simControls": { "description": "Simulation controls section title" },
+
+  "simSpeed": "Speed: {speed}x",
+  "@simSpeed": {
+    "description": "Speed slider label",
+    "placeholders": { "speed": { "type": "String" } }
+  },
+
+  "simRunning": "Simulation Running",
+  "@simRunning": { "description": "Status indicator: running" },
+
+  "simCustomer": "Customer",
+  "@simCustomer": { "description": "Legend: customer marker" },
+
+  "simDestinationLabel": "Destination",
+  "@simDestinationLabel": { "description": "Legend: destination marker" },
+
+  "simRoute": "Route",
+  "@simRoute": { "description": "Legend: route line" },
+
+  "simStateIdle": "Idle",
+  "@simStateIdle": { "description": "Simulation state chip: idle" },
+
+  "simStateOriginSet": "Origin Set",
+  "@simStateOriginSet": { "description": "Simulation state chip: origin set" },
+
+  "simStateRouteReady": "Route Ready",
+  "@simStateRouteReady": { "description": "Simulation state chip: route ready" },
+
+  "simStateNavigating": "Navigating",
+  "@simStateNavigating": { "description": "Simulation state chip: navigating" },
+
+  "simStatePaused": "Paused",
+  "@simStatePaused": { "description": "Simulation state chip: paused" },
+
+  "simStateArrived": "Arrived",
+  "@simStateArrived": { "description": "Simulation state chip: arrived" },
+
+  "simHintIdle": "Tap the map to set your start position",
+  "@simHintIdle": { "description": "Hint bar: idle state" },
+
+  "simHintOriginSet": "Now tap a destination room",
+  "@simHintOriginSet": { "description": "Hint bar: origin set" },
+
+  "simHintRouteReady": "Press Play to start the simulation",
+  "@simHintRouteReady": { "description": "Hint bar: route ready" },
+
+  "simHintSimulating": "Simulating navigation…",
+  "@simHintSimulating": { "description": "Hint bar: simulating" },
+
+  "simHintPaused": "Paused — press Play to continue",
+  "@simHintPaused": { "description": "Hint bar: paused" },
+
+  "simHintArrived": "You have arrived!",
+  "@simHintArrived": { "description": "Hint bar: arrived" },
+
+  "uwbMapTitle": "UWB Live Map",
+  "@uwbMapTitle": { "description": "UWB map page title" },
+
+  "uwbConnected": "Connected",
+  "@uwbConnected": { "description": "UWB connection status: connected" },
+
+  "uwbSearching": "Searching…",
+  "@uwbSearching": { "description": "UWB connection status: searching" },
+
+  "uwbDisconnected": "Disconnected",
+  "@uwbDisconnected": { "description": "UWB connection status: disconnected" },
+
+  "uwbStatusError": "Error",
+  "@uwbStatusError": { "description": "UWB connection status: error" },
+
+  "uwbNoAccuracyData": "No accuracy data to export",
+  "@uwbNoAccuracyData": { "description": "Snackbar when export log is empty" },
+
+  "uwbExportLog": "Export Log",
+  "@uwbExportLog": { "description": "Export log button tooltip" },
+
+  "uwbClearRoute": "Clear Route",
+  "@uwbClearRoute": { "description": "Clear route button tooltip" },
+
+  "uwbStartMoving": "Start moving to calibrate direction",
+  "@uwbStartMoving": { "description": "Calibration prompt" },
+
+  "uwbGoForward": "Go forward",
+  "@uwbGoForward": { "description": "Direction instruction: go forward" },
+
+  "uwbToDestination": "to destination",
+  "@uwbToDestination": { "description": "Direction suffix: to destination" },
+
+  "uwbWaiting": "Waiting for UWB position…",
+  "@uwbWaiting": { "description": "Info bar: waiting for position" },
+
+  "uwbTapToNavigate": "Tap a room on the map to navigate",
+  "@uwbTapToNavigate": { "description": "Info bar: tap to navigate hint" },
+
+  "beaconPressToStart": "Press Start Scan to begin",
+  "@beaconPressToStart": { "description": "Beacon scanner idle status" },
+
+  "beaconInitialising": "Initialising…",
+  "@beaconInitialising": { "description": "Beacon scanner initialising status" },
+
+  "beaconNotSupported": "BLE not supported on this platform",
+  "@beaconNotSupported": { "description": "Beacon scanner not supported status" },
+
+  "beaconDetected": "{count} beacon(s) detected!",
+  "@beaconDetected": {
+    "description": "Beacon scanner detected status",
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "beaconScanning": "Scanning… ({count} cycles)",
+  "@beaconScanning": {
+    "description": "Beacon scanner scanning status",
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "beaconError": "Error: {message}",
+  "@beaconError": {
+    "description": "Beacon scanner error status",
+    "placeholders": { "message": { "type": "String" } }
+  },
+
+  "beaconScanStopped": "Scan stopped",
+  "@beaconScanStopped": { "description": "Beacon scanner stopped status" },
+
+  "beaconSelectToScan": "Select beacons to scan",
+  "@beaconSelectToScan": { "description": "Beacon selection label" },
+
+  "beaconLookingFor": "Looking for beacons…",
+  "@beaconLookingFor": { "description": "Scanning in progress label" },
+
+  "beaconStopScan": "Stop Scan",
+  "@beaconStopScan": { "description": "Stop scan button label" },
+
+  "beaconStartScan": "Start Scan",
+  "@beaconStartScan": { "description": "Start scan button label" },
 
   "settingsTitle": "Settings",
   "@settingsTitle": { "description": "Settings page title" },
@@ -112,6 +340,12 @@
   "settingsDescription": "Indoor navigation system with haptic wearable device.",
   "@settingsDescription": { "description": "Short app description" },
 
+  "settingsArabicActive": "Arabic active — RTL layout",
+  "@settingsArabicActive": { "description": "Settings RTL indicator" },
+
+  "settingsEnglishActive": "English active — LTR layout",
+  "@settingsEnglishActive": { "description": "Settings LTR indicator" },
+
   "historyTitle": "Session History",
   "@historyTitle": { "description": "Session history page title" },
 
@@ -132,6 +366,21 @@
 
   "historyRouteCalcMs": "Route calc",
   "@historyRouteCalcMs": { "description": "Route calculation time label" },
+
+  "historyRefresh": "Refresh",
+  "@historyRefresh": { "description": "Refresh button tooltip" },
+
+  "historyRouteCalcDetail": "Route calculation: {ms} ms",
+  "@historyRouteCalcDetail": {
+    "description": "Route calc detail with ms value",
+    "placeholders": { "ms": { "type": "int" } }
+  },
+
+  "historySessionJson": "Session JSON",
+  "@historySessionJson": { "description": "Session JSON dialog title" },
+
+  "historyClose": "Close",
+  "@historyClose": { "description": "Close dialog button" },
 
   "errorGeneric": "Something went wrong. Please try again.",
   "@errorGeneric": { "description": "Generic error message" },

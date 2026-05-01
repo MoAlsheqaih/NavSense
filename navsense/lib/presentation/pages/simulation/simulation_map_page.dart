@@ -322,10 +322,10 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Icon(Icons.flag, color: Colors.green, size: 48),
-        content: const Text(
-          'You have arrived!',
+        content: Text(
+          AppLocalizations.of(context)!.instruction_arrived,
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         actions: [
           ElevatedButton(
@@ -333,7 +333,7 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
               Navigator.pop(context);
               _resetSimulation();
             },
-            child: const Text('Start Over'),
+            child: Text(AppLocalizations.of(context)!.simStartOver),
           ),
         ],
       ),
@@ -362,14 +362,14 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Simulation Mode'),
+        title: Text(AppLocalizations.of(context)!.simTitle),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _resetSimulation,
-            tooltip: 'Reset',
+            tooltip: AppLocalizations.of(context)!.simReset,
           ),
         ],
       ),
@@ -416,10 +416,10 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Flexible(
+                    Flexible(
                       child: Text(
-                        'Floor Plan',
-                        style: TextStyle(
+                        AppLocalizations.of(context)!.simFloorPlan,
+                        style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -540,7 +540,7 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
       children: [
         _buildMobileDirectionCard(l10n),
         const SizedBox(height: 8),
-        _buildMobileMetrics(),
+        _buildMobileMetrics(l10n),
         const SizedBox(height: 8),
         _buildMobileControls(),
       ],
@@ -578,7 +578,7 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
     );
   }
 
-  Widget _buildMobileMetrics() {
+  Widget _buildMobileMetrics(AppLocalizations l10n) {
     final etaMinutes = (_etaSeconds / 60).floor();
     final etaSecs = (_etaSeconds % 60).floor();
     final etaLabel =
@@ -593,13 +593,13 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _mobileMetricTile(
-              'Next', '${_distanceToNextWaypoint.toStringAsFixed(1)} m'),
+          _mobileMetricTile(l10n.simNext,
+              '${_distanceToNextWaypoint.toStringAsFixed(1)} m'),
           Container(width: 1, height: 32, color: Colors.grey.shade300),
           _mobileMetricTile(
-              'Remaining', '${_remainingMeters.toStringAsFixed(0)} m'),
+              l10n.simRemaining, '${_remainingMeters.toStringAsFixed(0)} m'),
           Container(width: 1, height: 32, color: Colors.grey.shade300),
-          _mobileMetricTile('ETA', etaLabel),
+          _mobileMetricTile(l10n.simEta, etaLabel),
         ],
       ),
     );
@@ -639,24 +639,24 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
                   : Colors.grey,
             ),
             iconSize: 28,
-            tooltip: isRunning ? 'Pause' : 'Play',
+            tooltip: isRunning
+                ? AppLocalizations.of(context)!.simPause
+                : AppLocalizations.of(context)!.simPlay,
           ),
-          // Reset
           IconButton(
             onPressed: _resetSimulation,
             icon: const Icon(Icons.refresh, color: Colors.blue),
             iconSize: 28,
-            tooltip: 'Reset',
+            tooltip: AppLocalizations.of(context)!.simReset,
           ),
           const SizedBox(width: 4),
-          // Speed slider — takes remaining width
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Speed: ${_simSpeed.toStringAsFixed(1)}x',
+                  AppLocalizations.of(context)!.simSpeed(_simSpeed.toStringAsFixed(1)),
                   style: const TextStyle(fontSize: 12),
                 ),
                 Slider(
@@ -721,18 +721,19 @@ class _SimulationMapPageState extends State<SimulationMapPage> {
       case TurnDirection.arrived:
         return l10n.instruction_arrived;
       case TurnDirection.turnAround:
-        return 'Turn Around';
+        return l10n.instructionTurnAround;
     }
   }
 
   Widget _buildLegend() {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
-        _legendDot(Colors.blue, 'Customer'),
+        _legendDot(Colors.blue, l10n.simCustomer),
         const SizedBox(width: 16),
-        _legendDot(Colors.green, 'Destination'),
+        _legendDot(Colors.green, l10n.simDestinationLabel),
         const SizedBox(width: 16),
-        _legendDot(const Color(0xFFE53935), 'Route'),
+        _legendDot(const Color(0xFFE53935), l10n.simRoute),
       ],
     );
   }
@@ -758,13 +759,14 @@ class _StateChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final (label, color) = switch (state) {
-      _SimState.idle => ('Tap map to set position', Colors.grey),
-      _SimState.originSet => ('Tap again for destination', Colors.orange),
-      _SimState.routeReady => ('Route ready — press Play', Colors.blue),
-      _SimState.simulating => ('Navigating…', Colors.green),
-      _SimState.paused => ('Paused — drag or press Play', Colors.orange),
-      _SimState.arrived => ('Arrived!', Colors.green),
+      _SimState.idle      => (l10n.simStateIdle, Colors.grey),
+      _SimState.originSet => (l10n.simStateOriginSet, Colors.orange),
+      _SimState.routeReady => (l10n.simStateRouteReady, Colors.blue),
+      _SimState.simulating => (l10n.simStateNavigating, Colors.green),
+      _SimState.paused    => (l10n.simStatePaused, Colors.orange),
+      _SimState.arrived   => (l10n.simStateArrived, Colors.green),
     };
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
@@ -797,15 +799,14 @@ class _HintBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final text = switch (state) {
-      _SimState.idle => '1. Tap on the map to place the customer position (blue dot)',
-      _SimState.originSet => '2. Tap again to place the destination (green dot)',
-      _SimState.routeReady => '3. Press Play in the left panel to start navigation',
-      _SimState.simulating =>
-        'Drag the blue dot anywhere to reroute. Navigation resumes automatically.',
-      _SimState.paused =>
-        'Paused. Drag the blue dot to reroute, or press Play to resume.',
-      _SimState.arrived => 'You have arrived! Press Reset to start over.',
+      _SimState.idle       => l10n.simHintIdle,
+      _SimState.originSet  => l10n.simHintOriginSet,
+      _SimState.routeReady => l10n.simHintRouteReady,
+      _SimState.simulating => l10n.simHintSimulating,
+      _SimState.paused     => l10n.simHintPaused,
+      _SimState.arrived    => l10n.simHintArrived,
     };
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),

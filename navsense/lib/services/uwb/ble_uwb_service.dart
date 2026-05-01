@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:navsense/services/logging/uwb_accuracy_logger.dart';
 import 'package:navsense/services/uwb/uwb_anchor.dart';
 import 'package:navsense/services/uwb/uwb_position.dart';
 import 'package:navsense/services/uwb/uwb_service.dart';
@@ -216,6 +217,12 @@ class BleUwbService implements UwbService {
           accuracy: position.accuracy,
         );
         _positionController.add(_lastPosition!);
+        UwbAccuracyLogger.instance.log(
+          x: _smoothedX!,
+          y: _smoothedY!,
+          accuracyMeters: position.accuracy,
+          anchorCount: updatedAnchors.length,
+        );
       }
     } catch (_) {}
   }

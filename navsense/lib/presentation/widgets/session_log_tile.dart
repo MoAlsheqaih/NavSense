@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../data/models/session_log_model.dart';
 import '../../domain/entities/navigation_session.dart';
 import '../../domain/entities/session_event.dart';
+import '../../l10n/app_localizations.dart';
 
 class SessionLogTile extends StatefulWidget {
   final NavigationSession session;
@@ -21,6 +22,7 @@ class _SessionLogTileState extends State<SessionLogTile> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final session = widget.session;
     final eventCount = session.events.length;
     final duration = session.navigationDuration;
@@ -46,7 +48,8 @@ class _SessionLogTileState extends State<SessionLogTile> {
                 if (duration != null)
                   Chip(
                     label: Text(_formatDuration(duration)),
-                    backgroundColor: AppTheme.successColor.withValues(alpha: 0.15),
+                    backgroundColor:
+                        AppTheme.successColor.withValues(alpha: 0.15),
                     labelStyle: const TextStyle(
                       color: AppTheme.successColor,
                       fontWeight: FontWeight.w600,
@@ -67,15 +70,15 @@ class _SessionLogTileState extends State<SessionLogTile> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Route calculation: $calcMs ms',
+                  l10n.historyRouteCalcDetail(calcMs),
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ),
             const Divider(),
             ...session.events.map((e) => ListTile(
                   dense: true,
-                  leading: const Icon(Icons.circle, size: 10,
-                      color: AppTheme.primaryColor),
+                  leading: const Icon(Icons.circle,
+                      size: 10, color: AppTheme.primaryColor),
                   title: Text(e.type.jsonKey,
                       style: const TextStyle(fontSize: 13)),
                   trailing: Text(
@@ -89,9 +92,9 @@ class _SessionLogTileState extends State<SessionLogTile> {
             Padding(
               padding: const EdgeInsets.all(8),
               child: OutlinedButton.icon(
-                onPressed: () => _showJson(context),
+                onPressed: () => _showJson(context, l10n),
                 icon: const Icon(Icons.code, size: 16),
-                label: const Text('View JSON'),
+                label: Text(l10n.historyExportJson),
               ),
             ),
           ],
@@ -100,14 +103,13 @@ class _SessionLogTileState extends State<SessionLogTile> {
     );
   }
 
-  void _showJson(BuildContext context) {
+  void _showJson(BuildContext context, AppLocalizations l10n) {
     final model = SessionLogModel.fromSession(widget.session);
-    final pretty =
-        const JsonEncoder.withIndent('  ').convert(model.toJson());
+    final pretty = const JsonEncoder.withIndent('  ').convert(model.toJson());
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Session JSON'),
+        title: Text(l10n.historySessionJson),
         content: SingleChildScrollView(
           child: SelectableText(
             pretty,
@@ -117,7 +119,7 @@ class _SessionLogTileState extends State<SessionLogTile> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(l10n.historyClose),
           ),
         ],
       ),

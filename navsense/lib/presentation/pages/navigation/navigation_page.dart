@@ -26,10 +26,13 @@ class NavigationPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final plan = routePlan;
     if (plan == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Navigation')),
-        body: const Center(child: Text('No route plan provided.')),
-      );
+      return Builder(builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.navPageTitle)),
+          body: Center(child: Text(l10n.navNoRoute)),
+        );
+      });
     }
 
     return ChangeNotifierProvider(
@@ -135,18 +138,13 @@ class _NavigationViewState extends State<_NavigationView> {
 
   String _localizeInstruction(String key, AppLocalizations l10n) {
     switch (key) {
-      case 'instruction_go_straight':
-        return l10n.instruction_go_straight;
-      case 'instruction_turn_left':
-        return l10n.instruction_turn_left;
-      case 'instruction_turn_right':
-        return l10n.instruction_turn_right;
-      case 'instruction_arrived':
-        return l10n.instruction_arrived;
-      case 'instruction_off_route':
-        return l10n.instruction_off_route;
-      default:
-        return key;
+      case 'instruction_go_straight':   return l10n.instruction_go_straight;
+      case 'instruction_turn_left':     return l10n.instruction_turn_left;
+      case 'instruction_turn_right':    return l10n.instruction_turn_right;
+      case 'instruction_arrived':       return l10n.instruction_arrived;
+      case 'instruction_off_route':     return l10n.instruction_off_route;
+      case 'instruction_turn_around':   return l10n.instructionTurnAround;
+      default:                          return key;
     }
   }
 
@@ -165,7 +163,7 @@ class _NavigationViewState extends State<_NavigationView> {
               Navigator.pop(context);
               Navigator.pop(context);
             },
-            child: const Text('OK'),
+            child: Text(l10n.navOk),
           ),
         ],
       ),
@@ -215,7 +213,7 @@ class _BeaconPanel extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                'BLE Beacon  •  Holy-IOT',
+                AppLocalizations.of(context)!.navBleBeacon,
                 style: TextStyle(
                     color: color, fontWeight: FontWeight.bold, fontSize: 13),
               ),
@@ -236,7 +234,7 @@ class _BeaconPanel extends StatelessWidget {
                   color: color,
                 ),
                 _BeaconMetric(
-                  label: 'Distance',
+                  label: AppLocalizations.of(context)!.navigationDistanceLabel,
                   value: distanceMeters != null
                       ? '${distanceMeters!.toStringAsFixed(1)} m'
                       : '—',
@@ -244,8 +242,9 @@ class _BeaconPanel extends StatelessWidget {
                   color: AppTheme.primaryColor,
                 ),
                 _BeaconMetric(
-                  label: 'Signal',
-                  value: strength,
+                  label: AppLocalizations.of(context)!.navSignal,
+                  value: _localizeStrength(
+                      strength, AppLocalizations.of(context)!),
                   icon: Icons.wifi,
                   color: _strengthColor(strength),
                 ),
@@ -254,7 +253,7 @@ class _BeaconPanel extends StatelessWidget {
           ] else ...[
             const SizedBox(height: 8),
             Text(
-              'Scanning for beacon…',
+              AppLocalizations.of(context)!.navScanningBeacon,
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ],
@@ -263,16 +262,22 @@ class _BeaconPanel extends StatelessWidget {
     );
   }
 
+  // strength is an internal English key from the viewmodel — never localized for comparison
   Color _strengthColor(String s) {
     switch (s) {
-      case 'VERY CLOSE':
-        return Colors.green;
-      case 'CLOSE':
-        return Colors.lightGreen;
-      case 'MEDIUM':
-        return Colors.orange;
-      default:
-        return Colors.red;
+      case 'VERY CLOSE': return Colors.green;
+      case 'CLOSE':      return Colors.lightGreen;
+      case 'MEDIUM':     return Colors.orange;
+      default:           return Colors.red;
+    }
+  }
+
+  String _localizeStrength(String s, AppLocalizations l10n) {
+    switch (s) {
+      case 'VERY CLOSE': return l10n.navStrengthVeryClose;
+      case 'CLOSE':      return l10n.navStrengthClose;
+      case 'MEDIUM':     return l10n.navStrengthMedium;
+      default:           return s;
     }
   }
 }
@@ -285,7 +290,9 @@ class _StrengthBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final color = isConnected ? _color() : Colors.grey;
+    final label = isConnected ? _localizeStrength(strength, l10n) : l10n.navSearchingBadge;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -294,23 +301,27 @@ class _StrengthBadge extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
-        isConnected ? strength : 'SEARCHING',
-        style:
-            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        label,
+        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }
 
   Color _color() {
     switch (strength) {
-      case 'VERY CLOSE':
-        return Colors.green;
-      case 'CLOSE':
-        return Colors.lightGreen;
-      case 'MEDIUM':
-        return Colors.orange;
-      default:
-        return Colors.red;
+      case 'VERY CLOSE': return Colors.green;
+      case 'CLOSE':      return Colors.lightGreen;
+      case 'MEDIUM':     return Colors.orange;
+      default:           return Colors.red;
+    }
+  }
+
+  String _localizeStrength(String s, AppLocalizations l10n) {
+    switch (s) {
+      case 'VERY CLOSE': return l10n.navStrengthVeryClose;
+      case 'CLOSE':      return l10n.navStrengthClose;
+      case 'MEDIUM':     return l10n.navStrengthMedium;
+      default:           return s;
     }
   }
 }
@@ -375,7 +386,7 @@ class _RouteStepsList extends StatelessWidget {
               const Icon(Icons.route, size: 15, color: AppTheme.primaryColor),
               const SizedBox(width: 6),
               Text(
-                'Dijkstra Route  •  ${steps.length} steps',
+                l10n.navDijkstraRoute(steps.length),
                 style: const TextStyle(
                     color: AppTheme.primaryColor,
                     fontWeight: FontWeight.bold,
@@ -489,16 +500,12 @@ class _StepRow extends StatelessWidget {
 
   String _localizeInstruction(String key, AppLocalizations l10n) {
     switch (key) {
-      case 'instruction_go_straight':
-        return l10n.instruction_go_straight;
-      case 'instruction_turn_left':
-        return l10n.instruction_turn_left;
-      case 'instruction_turn_right':
-        return l10n.instruction_turn_right;
-      case 'instruction_arrived':
-        return l10n.instruction_arrived;
-      default:
-        return key;
+      case 'instruction_go_straight':  return l10n.instruction_go_straight;
+      case 'instruction_turn_left':    return l10n.instruction_turn_left;
+      case 'instruction_turn_right':   return l10n.instruction_turn_right;
+      case 'instruction_arrived':      return l10n.instruction_arrived;
+      case 'instruction_turn_around':  return l10n.instructionTurnAround;
+      default:                         return key;
     }
   }
 }
@@ -529,8 +536,8 @@ class _ActionBar extends StatelessWidget {
                   onPressed: vm.triggerOffRoute,
                   icon: const Icon(Icons.warning_amber,
                       color: AppTheme.warningColor, size: 16),
-                  label: const Text('Off-Route',
-                      style: TextStyle(color: AppTheme.warningColor)),
+                  label: Text(l10n.navOffRoute,
+                      style: const TextStyle(color: AppTheme.warningColor)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppTheme.warningColor),
                   ),
@@ -543,7 +550,7 @@ class _ActionBar extends StatelessWidget {
                       ? vm.advanceManually
                       : null,
                   icon: const Icon(Icons.skip_next, size: 16),
-                  label: const Text('Next Step'),
+                  label: Text(l10n.navNextStep),
                 ),
               ),
             ],

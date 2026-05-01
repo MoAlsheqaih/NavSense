@@ -36,8 +36,8 @@ class SettingsPage extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Text(
               vm.isArabic
-                  ? '← Arabic (RTL) active'
-                  : 'English (LTR) active →',
+                  ? l10n.settingsArabicActive
+                  : l10n.settingsEnglishActive,
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ),

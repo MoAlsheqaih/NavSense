@@ -36,7 +36,7 @@ class _SessionHistoryView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: vm.load,
-            tooltip: 'Refresh',
+            tooltip: l10n.historyRefresh,
           ),
         ],
       ),

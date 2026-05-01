@@ -64,11 +64,11 @@ class InstructionsPanel extends StatelessWidget {
           const SizedBox(height: 16),
           _buildDistanceCard(l10n),
           const SizedBox(height: 16),
-          _buildStepProgress(),
+          _buildStepProgress(l10n),
           const SizedBox(height: 16),
-          _buildSimulationControls(),
+          _buildSimulationControls(l10n),
           const Spacer(),
-          _buildStatusIndicator(),
+          _buildStatusIndicator(l10n),
         ],
       ),
     );
@@ -152,7 +152,7 @@ class InstructionsPanel extends StatelessWidget {
         children: [
           // Distance to next waypoint
           _MetricTile(
-            label: 'Next turn',
+            label: l10n.simNextTurn,
             value: TweenAnimationBuilder<double>(
               tween: Tween<double>(begin: distanceToNext, end: distanceToNext),
               duration: const Duration(milliseconds: 350),
@@ -166,7 +166,7 @@ class InstructionsPanel extends StatelessWidget {
           Container(width: 1, height: 40, color: Colors.grey.shade300),
           // Total remaining
           _MetricTile(
-            label: 'Remaining',
+            label: l10n.simRemaining,
             value: TweenAnimationBuilder<double>(
               tween: Tween<double>(
                   begin: remainingMeters, end: remainingMeters),
@@ -181,7 +181,7 @@ class InstructionsPanel extends StatelessWidget {
           Container(width: 1, height: 40, color: Colors.grey.shade300),
           // ETA
           _MetricTile(
-            label: 'ETA',
+            label: l10n.simEta,
             value: AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: Text(
@@ -197,7 +197,7 @@ class InstructionsPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildStepProgress() {
+  Widget _buildStepProgress(AppLocalizations l10n) {
     if (totalSteps == 0) {
       return Container(
         width: double.infinity,
@@ -206,9 +206,9 @@ class InstructionsPanel extends StatelessWidget {
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Text(
-          'No route computed yet',
-          style: TextStyle(fontSize: 13, color: Colors.grey),
+        child: Text(
+          l10n.simNoRoute,
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
           textAlign: TextAlign.center,
         ),
       );
@@ -287,7 +287,7 @@ class InstructionsPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildSimulationControls() {
+  Widget _buildSimulationControls(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -298,9 +298,9 @@ class InstructionsPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Simulation Controls',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          Text(
+            l10n.simControls,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
           Row(
@@ -314,14 +314,14 @@ class InstructionsPanel extends StatelessWidget {
                     isSimulationRunning ? Icons.pause : Icons.play_arrow,
                     color: isSimulationRunning ? Colors.orange : Colors.green,
                   ),
-                  tooltip: isSimulationRunning ? 'Pause' : 'Play',
+                  tooltip: isSimulationRunning ? l10n.simPause : l10n.simPlay,
                   iconSize: 20,
                 ),
               ),
               IconButton(
                 onPressed: onResetSimulation,
                 icon: const Icon(Icons.refresh, color: Colors.blue),
-                tooltip: 'Reset',
+                tooltip: l10n.simReset,
                 iconSize: 20,
               ),
               const SizedBox(width: 8),
@@ -330,7 +330,7 @@ class InstructionsPanel extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Speed: ${simulationSpeed.toStringAsFixed(1)}x',
+                      l10n.simSpeed(simulationSpeed.toStringAsFixed(1)),
                       style: const TextStyle(fontSize: 12),
                     ),
                     Slider(
@@ -350,7 +350,7 @@ class InstructionsPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusIndicator() {
+  Widget _buildStatusIndicator(AppLocalizations l10n) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       width: double.infinity,
@@ -374,7 +374,7 @@ class InstructionsPanel extends StatelessWidget {
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
             child: Text(
-              isSimulationRunning ? 'Simulation Running' : 'Simulation Mode',
+              isSimulationRunning ? l10n.simRunning : l10n.simTitle,
               key: ValueKey(isSimulationRunning),
               style: TextStyle(
                 fontSize: 12,
@@ -393,7 +393,7 @@ class InstructionsPanel extends StatelessWidget {
       case TurnDirection.right:    return l10n.instruction_turn_right;
       case TurnDirection.straight: return l10n.instruction_go_straight;
       case TurnDirection.arrived:    return l10n.instruction_arrived;
-      case TurnDirection.turnAround: return 'Turn Around';
+      case TurnDirection.turnAround: return l10n.instructionTurnAround;
     }
   }
 

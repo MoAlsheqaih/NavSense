@@ -48,15 +48,12 @@ class _HomeViewState extends State<_HomeView> {
         actions: [
           IconButton(
             icon: const Icon(Icons.map),
-            tooltip: 'Simulation Mode',
-            onPressed: () => Navigator.pushNamed(
-              context,
-              AppRoutes.simulation,
-            ),
+            tooltip: l10n.simTitle,
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.simulation),
           ),
           IconButton(
             icon: const Icon(Icons.radar),
-            tooltip: 'Beacon Scanner',
+            tooltip: l10n.homeBeaconScanner,
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const BeaconScannerPage()),
@@ -64,7 +61,7 @@ class _HomeViewState extends State<_HomeView> {
           ),
           IconButton(
             icon: const Icon(Icons.my_location),
-            tooltip: 'UWB Live Map',
+            tooltip: l10n.uwbMapTitle,
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const UwbMapPage()),
@@ -89,20 +86,18 @@ class _HomeViewState extends State<_HomeView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Feature badge ──────────────────────────────────────────────
-          const _FeatureBadge(
+          _FeatureBadge(
             icon: Icons.route,
-            label: 'Dijkstra Routing  •  9 Real Rooms',
+            label: l10n.homeDijkstraFeature,
             color: AppTheme.primaryColor,
           ),
           const SizedBox(height: 10),
           const UwbStatusWidget(),
           const SizedBox(height: 10),
 
-          // ── Start room ────────────────────────────────────────────────
-          const _SectionLabel(
+          _SectionLabel(
             icon: Icons.my_location,
-            text: 'Starting From',
+            text: l10n.homeStartingFrom,
             color: AppTheme.accentColor,
           ),
           const SizedBox(height: 10),
@@ -114,7 +109,6 @@ class _HomeViewState extends State<_HomeView> {
           ),
           const SizedBox(height: 20),
 
-          // ── Destination room ──────────────────────────────────────────
           _SectionLabel(
             icon: Icons.flag,
             text: l10n.homeSelectDestination,
@@ -129,7 +123,6 @@ class _HomeViewState extends State<_HomeView> {
           ),
           const SizedBox(height: 24),
 
-          // ── Route summary chip ────────────────────────────────────────
           if (vm.selectedOrigin != null && vm.selectedDestination != null)
             _RouteSummaryChip(
               from: vm.selectedOrigin!.name,
@@ -138,7 +131,6 @@ class _HomeViewState extends State<_HomeView> {
 
           const SizedBox(height: 16),
 
-          // ── Start button ──────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
             child: vm.state == HomeState.loading
@@ -175,7 +167,7 @@ class _HomeViewState extends State<_HomeView> {
               child: Center(
                 child: Text(
                   vm.selectedOrigin == null
-                      ? 'Select a starting room'
+                      ? l10n.homeSelectStartRoom
                       : l10n.homeNoDestination,
                   style: const TextStyle(color: Colors.grey, fontSize: 13),
                 ),
@@ -259,7 +251,6 @@ class _RoomGrid extends StatelessWidget {
   }
 
   String _shortName(String name) {
-    // "Room 1 (Top-Left)" → "Room 1\nTop-Left"
     final match = RegExp(r'^(Room \d+)\s*\((.+)\)$').firstMatch(name);
     if (match != null) return '${match.group(1)}\n${match.group(2)}';
     return name;

@@ -3,11 +3,14 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:get_it/get_it.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../domain/entities/route_plan.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../services/haptic/haptic_service.dart';
 import '../../../services/haptic/wearable_haptic_service.dart';
+import '../../../services/logging/uwb_accuracy_logger.dart';
 import '../../../services/uwb/uwb_anchor.dart';
 import '../../../services/uwb/uwb_position.dart';
 import '../../../services/uwb/uwb_service.dart';
@@ -22,8 +25,6 @@ class _CanvasTransform {
         maxY - (canvas.dy - offsetY) / scale,
       );
 }
-
-// _NavPath removed — routing is now direct bearing from current position to destination
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
   static const double _minMoveDist = 0.15;
   static const double _emaAlpha = 0.4;
-  static const double _arrivalRadius = 1.0; // destination zone (2×2 m area)
+  static const double _arrivalRadius = 1.0;
   static const Duration _hapticCooldown = Duration(seconds: 2);
   static const Duration _hapticReminder = Duration(seconds: 5);
 
@@ -75,7 +76,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
     _wearableService.connect().catchError((_) {});
 
-    // Cap UI repaints at 30 fps regardless of how fast data arrives
     _renderTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
       if (_dirty && mounted) {
         _dirty = false;
@@ -86,7 +86,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
     _posSub = _uwbService.positionStream.listen((pos) {
       if (!mounted) return;
 
-      // Movement vector — update fields directly, no setState
       if (_prevPosition != null) {
         final dx = pos.x - _prevPosition!.x;
         final dy = pos.y - _prevPosition!.y;
@@ -110,7 +109,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
       _position = pos;
       _dirty = true;
 
-      // Once arrived, all haptics stop permanently until a new destination is set
       if (_navigationComplete) return;
 
       if (_arrived) {
@@ -129,7 +127,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
     _compassSub = FlutterCompass.events?.listen((event) {
       if (event.heading == null) return;
-      // Only mark dirty — render timer will pick it up
       _compassDeg = event.heading;
       _dirty = true;
     });
@@ -158,7 +155,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
     return sqrt(dx * dx + dy * dy);
   }
 
-  // Pure computation — always points directly at destination from current position
   _NavInstruction? get _instruction {
     if (_arrived || _destination == null) return null;
     final bearing = _bearingToDestination;
@@ -174,22 +170,17 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
   void _checkAndFireHaptic(_NavInstruction inst) {
     final now = DateTime.now();
-    final elapsed = _lastHapticTime == null
-        ? null
-        : now.difference(_lastHapticTime!);
-
+    final elapsed =
+        _lastHapticTime == null ? null : now.difference(_lastHapticTime!);
     final changed = inst != _lastFiredInstruction;
 
     if (changed) {
-      // Always fire on first instruction; afterwards enforce cooldown to prevent
-      // oscillation when heading sits right on a threshold boundary
       if (elapsed == null || elapsed >= _hapticCooldown) {
         _fireDirectionHaptic(inst);
         _lastFiredInstruction = inst;
         _lastHapticTime = now;
       }
     } else if (inst != _NavInstruction.forward) {
-      // Periodic reminder: re-buzz Left/Right/TurnAround if user hasn't adjusted
       if (elapsed != null && elapsed >= _hapticReminder) {
         _fireDirectionHaptic(inst);
         _lastHapticTime = now;
@@ -224,8 +215,22 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
   void _fireArrivalHaptic() {
     _hapticService.triggerArrival();
-    // Send regardless of connection state — fire and forget, ESP32 fires all motors
     _wearableService.triggerDirection(TurnDirection.arrived).catchError((_) {});
+  }
+
+  Future<void> _exportAccuracyLog() async {
+    final l10n = AppLocalizations.of(context)!;
+    final path = await UwbAccuracyLogger.instance.filePath;
+    if (path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.uwbNoAccuracyData)),
+        );
+      }
+      return;
+    }
+    final params = ShareParams(files: [XFile(path)], subject: 'UWB Accuracy Log');
+    await SharePlus.instance.share(params);
   }
 
   void _onTap(TapUpDetails details) {
@@ -249,15 +254,21 @@ class _UwbMapPageState extends State<UwbMapPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppTheme.darkBg,
       appBar: AppBar(
-        title: const Text('UWB Live Map'),
+        title: Text(l10n.uwbMapTitle),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download, size: 20),
+            tooltip: l10n.uwbExportLog,
+            onPressed: _exportAccuracyLog,
+          ),
           if (_destination != null)
             IconButton(
               icon: const Icon(Icons.clear, size: 18),
-              tooltip: 'Clear route',
+              tooltip: l10n.uwbClearRoute,
               onPressed: () => setState(() => _destination = null),
             ),
           if (_activeHeading != null)
@@ -273,15 +284,12 @@ class _UwbMapPageState extends State<UwbMapPage> {
       ),
       body: Column(
         children: [
-          // Navigation card
           if (_destination != null)
             _NavCard(
               instruction: _arrived ? null : _instruction,
               distToDestination: _distToDestination,
               arrived: _arrived,
             ),
-
-          // Map — fills all remaining space
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
@@ -310,7 +318,6 @@ class _UwbMapPageState extends State<UwbMapPage> {
                             child: const SizedBox.expand(),
                           ),
                         ),
-                        // Slim info bar at bottom of map
                         Positioned(
                           left: 0,
                           right: 0,
@@ -352,25 +359,33 @@ class _NavCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     if (arrived) {
-      return _card(AppTheme.successColor, Icons.check_circle, 'You have arrived!');
+      return _card(context, AppTheme.successColor, Icons.check_circle,
+          l10n.instruction_arrived);
     }
     if (instruction == null) {
-      return _card(Colors.grey, Icons.directions_walk, 'Start moving…');
+      return _card(
+          context, Colors.grey, Icons.directions_walk, l10n.uwbStartMoving);
     }
     switch (instruction!) {
       case _NavInstruction.forward:
-        return _card(AppTheme.successColor, Icons.arrow_upward, 'Go Forward');
+        return _card(context, AppTheme.successColor, Icons.arrow_upward,
+            l10n.uwbGoForward);
       case _NavInstruction.left:
-        return _card(Colors.orange, Icons.turn_left, 'Turn Left');
+        return _card(
+            context, Colors.orange, Icons.turn_left, l10n.instruction_turn_left);
       case _NavInstruction.right:
-        return _card(Colors.orange, Icons.turn_right, 'Turn Right');
+        return _card(context, Colors.orange, Icons.turn_right,
+            l10n.instruction_turn_right);
       case _NavInstruction.turnAround:
-        return _card(Colors.red, Icons.u_turn_left, 'Turn Around');
+        return _card(context, Colors.red, Icons.u_turn_left,
+            l10n.instructionTurnAround);
     }
   }
 
-  Widget _card(Color color, IconData icon, String label) {
+  Widget _card(BuildContext context, Color color, IconData icon, String label) {
+    final l10n = AppLocalizations.of(context)!;
     final dist = distToDestination;
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -400,7 +415,7 @@ class _NavCard extends StatelessWidget {
                   style: TextStyle(
                       color: color, fontSize: 18, fontWeight: FontWeight.bold),
                 ),
-                Text('to destination',
+                Text(l10n.uwbToDestination,
                     style: TextStyle(
                         color: color.withValues(alpha: 0.7), fontSize: 10)),
               ],
@@ -465,7 +480,6 @@ class _MapPainter extends CustomPainter {
           offsetY + (maxY - y) * scale,
         );
 
-    // Grid
     final gridPaint = Paint()
       ..color = AppTheme.darkBorder.withValues(alpha: 0.5)
       ..strokeWidth = 0.5;
@@ -478,7 +492,6 @@ class _MapPainter extends CustomPainter {
 
     _drawNorthIndicator(canvas);
 
-    // Anchor rings
     for (final a in anchors) {
       if (a.distanceMeters > 0) {
         canvas.drawCircle(
@@ -491,12 +504,10 @@ class _MapPainter extends CustomPainter {
       }
     }
 
-    // Route: live straight line from current position to destination
     if (destination != null && tagPosition != null) {
       final from = tc(tagPosition!.x, tagPosition!.y);
       final dest = tc(destination!.dx, destination!.dy);
 
-      // Live route line
       canvas.drawLine(
           from,
           dest,
@@ -505,7 +516,6 @@ class _MapPainter extends CustomPainter {
             ..strokeWidth = 3
             ..strokeCap = StrokeCap.round);
 
-      // Destination zone (2×2 m area)
       final zoneR = arrivalRadius * transform.scale;
       canvas.drawCircle(
           dest, zoneR, Paint()..color = Colors.yellow.withValues(alpha: 0.08));
@@ -517,12 +527,13 @@ class _MapPainter extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5);
       const r = 6.0;
-      final xp = Paint()..color = Colors.yellow..strokeWidth = 2;
+      final xp = Paint()
+        ..color = Colors.yellow
+        ..strokeWidth = 2;
       canvas.drawLine(dest + const Offset(-r, -r), dest + const Offset(r, r), xp);
       canvas.drawLine(dest + const Offset(r, -r), dest + const Offset(-r, r), xp);
       _drawLabel(canvas, 'DEST', Colors.yellow, 11, dest, zoneR + 4, bold: true);
     } else if (destination != null) {
-      // Show destination even without position fix
       final dest = tc(destination!.dx, destination!.dy);
       final zoneR = arrivalRadius * transform.scale;
       canvas.drawCircle(
@@ -537,11 +548,10 @@ class _MapPainter extends CustomPainter {
       _drawLabel(canvas, 'DEST', Colors.yellow, 11, dest, zoneR + 4, bold: true);
     }
 
-    // Anchors
     for (final a in anchors) {
       final pos = tc(a.x, a.y);
-      canvas.drawCircle(pos, 10,
-          Paint()..color = AppTheme.primaryColor.withValues(alpha: 0.9));
+      canvas.drawCircle(
+          pos, 10, Paint()..color = AppTheme.primaryColor.withValues(alpha: 0.9));
       canvas.drawCircle(
           pos,
           10,
@@ -559,7 +569,6 @@ class _MapPainter extends CustomPainter {
           25);
     }
 
-    // Tag
     if (tagPosition != null) {
       final tagPos = tc(tagPosition!.x, tagPosition!.y);
       if (headingDeg != null) _drawArrow(canvas, tagPos, headingDeg!);
@@ -654,7 +663,7 @@ class _MapPainter extends CustomPainter {
   }
 }
 
-// ── Info Bar (slim overlay at bottom of map) ──────────────────────────────────
+// ── Info Bar ──────────────────────────────────────────────────────────────────
 
 class _InfoBar extends StatelessWidget {
   final UwbPosition? position;
@@ -671,9 +680,10 @@ class _InfoBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final posText = position != null
         ? 'x ${position!.x.toStringAsFixed(1)}  y ${position!.y.toStringAsFixed(1)}'
-        : 'Waiting…';
+        : l10n.uwbWaiting;
 
     final anchorTexts = anchors
         .where((a) => a.distanceMeters > 0)
@@ -698,13 +708,13 @@ class _InfoBar extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(anchorTexts,
-                style: const TextStyle(
-                    color: AppTheme.darkOnMuted, fontSize: 10),
+                style: const TextStyle(color: AppTheme.darkOnMuted, fontSize: 10),
                 overflow: TextOverflow.ellipsis),
           ),
           if (noRoute)
-            const Text('Tap map to navigate',
-                style: TextStyle(color: AppTheme.darkOnMuted, fontSize: 10)),
+            Text(l10n.uwbTapToNavigate,
+                style:
+                    const TextStyle(color: AppTheme.darkOnMuted, fontSize: 10)),
         ],
       ),
     );
@@ -732,16 +742,17 @@ class _ConnBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final color = state == UwbConnectionState.connected
         ? AppTheme.successColor
         : state == UwbConnectionState.connecting
             ? AppTheme.warningColor
             : Colors.red;
     final label = state == UwbConnectionState.connected
-        ? 'Connected'
+        ? l10n.uwbConnected
         : state == UwbConnectionState.connecting
-            ? 'Searching...'
-            : 'Disconnected';
+            ? l10n.uwbSearching
+            : l10n.uwbDisconnected;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

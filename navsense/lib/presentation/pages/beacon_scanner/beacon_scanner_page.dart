@@ -5,8 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_beacon/flutter_beacon.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../services/ble/ibeacon_parser.dart';
 import '../../widgets/ble_status_widget.dart';
+
+// Internal scan state — never localized, resolved to display string in build()
+enum _ScanStateType { idle, initialising, notSupported, detected, scanning, error, stopped }
 
 class BeaconScannerPage extends StatefulWidget {
   const BeaconScannerPage({Key? key}) : super(key: key);
@@ -17,7 +21,8 @@ class BeaconScannerPage extends StatefulWidget {
 
 class _BeaconScannerPageState extends State<BeaconScannerPage> {
   bool _isScanning = false;
-  String _status = 'Press Scan to start';
+  _ScanStateType _scanState = _ScanStateType.idle;
+  String _errorMessage = '';
   List<Beacon> _detectedBeacons = [];
   StreamSubscription<RangingResult>? _sub;
   int _scanCount = 0;
@@ -36,7 +41,7 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
 
   Future<void> _startScan() async {
     setState(() {
-      _status = 'Initialising…';
+      _scanState = _ScanStateType.initialising;
       _isScanning = true;
       _detectedBeacons = [];
       _scanCount = 0;
@@ -44,7 +49,7 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
 
     if (kIsWeb) {
       setState(() {
-        _status = 'BLE not supported on web';
+        _scanState = _ScanStateType.notSupported;
         _isScanning = false;
       });
       return;
@@ -52,13 +57,6 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
 
     try {
       await flutterBeacon.initializeAndCheckScanning;
-
-      final region = Region(
-        identifier: 'navsense_scanner',
-        proximityUUID: BeaconConfig.targetUuid,
-        major: BeaconConfig.targetMajor,
-        minor: BeaconConfig.targetMinor,
-      );
 
       final selectedBeacons = BeaconConfig.allBeacons
           .where((b) => _selectedBeaconNames.contains(b.name))
@@ -78,17 +76,16 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
         setState(() {
           _scanCount++;
           _detectedBeacons = result.beacons;
-          if (result.beacons.isNotEmpty) {
-            _status = '${result.beacons.length} beacon(s) detected!';
-          } else {
-            _status = 'Scanning… ($_scanCount scans)';
-          }
+          _scanState = result.beacons.isNotEmpty
+              ? _ScanStateType.detected
+              : _ScanStateType.scanning;
         });
       });
     } catch (e) {
       if (mounted) {
         setState(() {
-          _status = 'Error: $e';
+          _errorMessage = e.toString();
+          _scanState = _ScanStateType.error;
           _isScanning = false;
         });
       }
@@ -101,16 +98,29 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
     if (mounted) {
       setState(() {
         _isScanning = false;
-        _status = 'Scan stopped';
+        _scanState = _ScanStateType.stopped;
       });
+    }
+  }
+
+  String _statusText(AppLocalizations l10n) {
+    switch (_scanState) {
+      case _ScanStateType.idle:         return l10n.beaconPressToStart;
+      case _ScanStateType.initialising: return l10n.beaconInitialising;
+      case _ScanStateType.notSupported: return l10n.beaconNotSupported;
+      case _ScanStateType.detected:     return l10n.beaconDetected(_detectedBeacons.length);
+      case _ScanStateType.scanning:     return l10n.beaconScanning(_scanCount);
+      case _ScanStateType.error:        return l10n.beaconError(_errorMessage);
+      case _ScanStateType.stopped:      return l10n.beaconScanStopped;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Beacon Scanner'),
+        title: Text(l10n.homeBeaconScanner),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -121,9 +131,10 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Select Beacons to Scan:',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: AppTheme.darkOnBg)),
+                Text(l10n.beaconSelectToScan,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkOnBg)),
                 const SizedBox(height: 8),
                 ...BeaconConfig.allBeacons.map((beacon) => BeaconSelectionCard(
                       beacon: beacon,
@@ -155,7 +166,7 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _status,
+                  _statusText(l10n),
                   style: TextStyle(
                     color: _detectedBeacons.isNotEmpty
                         ? AppTheme.successColor
@@ -180,18 +191,17 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
                       ('Minor', '${beacon.minor}'),
                       ('RSSI', '${beacon.rssi} dBm'),
                       (
-                        'Distance',
+                        l10n.navigationDistanceLabel,
                         beacon.accuracy > 0
                             ? '${beacon.accuracy.toStringAsFixed(2)} m'
-                            : 'Unknown'
+                            : '—'
                       ),
                       ('Proximity', beacon.proximity.name.toUpperCase()),
                     ];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: _InfoCard(
-                        title:
-                            'Beacon ${index + 1} (${beacon.major}:${beacon.minor})',
+                        title: 'Beacon ${index + 1} (${beacon.major}:${beacon.minor})',
                         highlight: true,
                         rows: rows,
                       ),
@@ -207,12 +217,13 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: AppTheme.darkBorder),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Looking for selected beacons…',
-                        style: TextStyle(color: AppTheme.darkOnMuted)),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(l10n.beaconLookingFor,
+                        style:
+                            const TextStyle(color: AppTheme.darkOnMuted)),
                   ],
                 ),
               ),
@@ -227,13 +238,14 @@ class _BeaconScannerPageState extends State<BeaconScannerPage> {
                 onPressed: _isScanning ? _stopScan : _startScan,
                 icon: Icon(_isScanning ? Icons.stop : Icons.radar),
                 label: Text(
-                  _isScanning ? 'Stop Scan' : 'Start Scan',
+                  _isScanning ? l10n.beaconStopScan : l10n.beaconStartScan,
                   style: const TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _isScanning ? Colors.red.shade800 : AppTheme.primaryColor,
+                  backgroundColor: _isScanning
+                      ? Colors.red.shade800
+                      : AppTheme.primaryColor,
                 ),
               ),
             ),

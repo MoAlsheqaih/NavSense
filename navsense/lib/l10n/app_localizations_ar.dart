@@ -36,6 +36,18 @@ class AppLocalizationsAr extends AppLocalizations {
   String get homeComputingRoute => 'جاري حساب المسار…';
 
   @override
+  String get homeBeaconScanner => 'ماسح المستشعرات';
+
+  @override
+  String get homeStartingFrom => 'الانطلاق من';
+
+  @override
+  String get homeSelectStartRoom => 'اختر غرفة البداية';
+
+  @override
+  String get homeDijkstraFeature => 'خوارزمية ديكسترا';
+
+  @override
   String get navigationHeading => 'جاري التنقل';
 
   @override
@@ -67,6 +79,47 @@ class AppLocalizationsAr extends AppLocalizations {
   }
 
   @override
+  String get navPageTitle => 'التنقل';
+
+  @override
+  String get navNoRoute => 'لا يوجد مسار متاح';
+
+  @override
+  String get navOk => 'موافق';
+
+  @override
+  String get navBleBeacon => 'مستشعر BLE';
+
+  @override
+  String get navSignal => 'الإشارة';
+
+  @override
+  String get navScanningBeacon => 'جاري البحث عن المستشعر…';
+
+  @override
+  String get navStrengthVeryClose => 'قريب جداً';
+
+  @override
+  String get navStrengthClose => 'قريب';
+
+  @override
+  String get navStrengthMedium => 'متوسط';
+
+  @override
+  String get navSearchingBadge => 'جاري البحث…';
+
+  @override
+  String navDijkstraRoute(int count) {
+    return 'مسار ديكسترا  •  $count خطوات';
+  }
+
+  @override
+  String get navOffRoute => 'خارج المسار';
+
+  @override
+  String get navNextStep => 'الخطوة التالية';
+
+  @override
   String get instruction_go_straight => 'استمر للأمام';
 
   @override
@@ -82,6 +135,9 @@ class AppLocalizationsAr extends AppLocalizations {
   String get instruction_off_route => 'خارج المسار — جاري إعادة الحساب…';
 
   @override
+  String get instructionTurnAround => 'استدر';
+
+  @override
   String get hapticLeft => 'نبضة يسار';
 
   @override
@@ -92,6 +148,173 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get hapticOffRoute => 'نبضات تنبيه';
+
+  @override
+  String get simTitle => 'المحاكاة';
+
+  @override
+  String get simReset => 'إعادة تعيين';
+
+  @override
+  String get simPause => 'إيقاف مؤقت';
+
+  @override
+  String get simPlay => 'تشغيل';
+
+  @override
+  String get simStartOver => 'البدء من جديد';
+
+  @override
+  String get simFloorPlan => 'مخطط الطابق';
+
+  @override
+  String get simNext => 'التالي';
+
+  @override
+  String get simNextTurn => 'المنعطف التالي';
+
+  @override
+  String get simRemaining => 'المتبقي';
+
+  @override
+  String get simEta => 'وقت الوصول';
+
+  @override
+  String get simNoRoute => 'لم يتم تخطيط مسار';
+
+  @override
+  String get simControls => 'أدوات التحكم';
+
+  @override
+  String simSpeed(String speed) {
+    return 'السرعة: ${speed}x';
+  }
+
+  @override
+  String get simRunning => 'المحاكاة تعمل';
+
+  @override
+  String get simCustomer => 'العميل';
+
+  @override
+  String get simDestinationLabel => 'الوجهة';
+
+  @override
+  String get simRoute => 'المسار';
+
+  @override
+  String get simStateIdle => 'في الانتظار';
+
+  @override
+  String get simStateOriginSet => 'تم تحديد نقطة البداية';
+
+  @override
+  String get simStateRouteReady => 'المسار جاهز';
+
+  @override
+  String get simStateNavigating => 'جاري التنقل';
+
+  @override
+  String get simStatePaused => 'متوقف مؤقتاً';
+
+  @override
+  String get simStateArrived => 'وصلت';
+
+  @override
+  String get simHintIdle => 'اضغط على الخريطة لتحديد موقع البداية';
+
+  @override
+  String get simHintOriginSet => 'الآن اضغط على غرفة الوجهة';
+
+  @override
+  String get simHintRouteReady => 'اضغط تشغيل لبدء المحاكاة';
+
+  @override
+  String get simHintSimulating => 'جاري محاكاة التنقل…';
+
+  @override
+  String get simHintPaused => 'متوقف — اضغط تشغيل للمتابعة';
+
+  @override
+  String get simHintArrived => 'لقد وصلت!';
+
+  @override
+  String get uwbMapTitle => 'خريطة UWB المباشرة';
+
+  @override
+  String get uwbConnected => 'متصل';
+
+  @override
+  String get uwbSearching => 'جاري البحث…';
+
+  @override
+  String get uwbDisconnected => 'غير متصل';
+
+  @override
+  String get uwbStatusError => 'خطأ';
+
+  @override
+  String get uwbNoAccuracyData => 'لا توجد بيانات دقة للتصدير';
+
+  @override
+  String get uwbExportLog => 'تصدير السجل';
+
+  @override
+  String get uwbClearRoute => 'مسح المسار';
+
+  @override
+  String get uwbStartMoving => 'ابدأ الحركة لمعايرة الاتجاه';
+
+  @override
+  String get uwbGoForward => 'تقدم للأمام';
+
+  @override
+  String get uwbToDestination => 'إلى الوجهة';
+
+  @override
+  String get uwbWaiting => 'في انتظار موقع UWB…';
+
+  @override
+  String get uwbTapToNavigate => 'اضغط على غرفة في الخريطة للتنقل';
+
+  @override
+  String get beaconPressToStart => 'اضغط \"بدء الفحص\" للبدء';
+
+  @override
+  String get beaconInitialising => 'جاري التهيئة…';
+
+  @override
+  String get beaconNotSupported => 'BLE غير مدعوم على هذه المنصة';
+
+  @override
+  String beaconDetected(int count) {
+    return 'تم اكتشاف $count مستشعر!';
+  }
+
+  @override
+  String beaconScanning(int count) {
+    return 'جاري الفحص… ($count دورة)';
+  }
+
+  @override
+  String beaconError(String message) {
+    return 'خطأ: $message';
+  }
+
+  @override
+  String get beaconScanStopped => 'توقف الفحص';
+
+  @override
+  String get beaconSelectToScan => 'اختر المستشعرات للفحص';
+
+  @override
+  String get beaconLookingFor => 'جاري البحث عن المستشعرات…';
+
+  @override
+  String get beaconStopScan => 'إيقاف الفحص';
+
+  @override
+  String get beaconStartScan => 'بدء الفحص';
 
   @override
   String get settingsTitle => 'الإعدادات';
@@ -116,6 +339,12 @@ class AppLocalizationsAr extends AppLocalizations {
       'نظام تنقل داخلي مع جهاز اهتزازي قابل للارتداء.';
 
   @override
+  String get settingsArabicActive => 'العربية نشطة — تخطيط RTL';
+
+  @override
+  String get settingsEnglishActive => 'الإنجليزية نشطة — تخطيط LTR';
+
+  @override
   String get historyTitle => 'سجل الجلسات';
 
   @override
@@ -135,6 +364,20 @@ class AppLocalizationsAr extends AppLocalizations {
 
   @override
   String get historyRouteCalcMs => 'وقت حساب المسار';
+
+  @override
+  String get historyRefresh => 'تحديث';
+
+  @override
+  String historyRouteCalcDetail(int ms) {
+    return 'وقت حساب المسار: $ms م.ث';
+  }
+
+  @override
+  String get historySessionJson => 'JSON الجلسة';
+
+  @override
+  String get historyClose => 'إغلاق';
 
   @override
   String get errorGeneric => 'حدث خطأ. يرجى المحاولة مرة أخرى.';
