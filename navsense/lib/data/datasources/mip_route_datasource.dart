@@ -102,7 +102,7 @@ class MipRouteDatasource {
     final solveTime = (data['solve_time'] as num).toDouble();
     final pathLength = data['path_length'] as int;
 
-    final metersPerCell = 0.5;
+    const metersPerCell = 0.5;
     final totalDistanceMeters = distance * metersPerCell;
 
     final steps = <RouteStep>[];
